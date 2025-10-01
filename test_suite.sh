@@ -57,11 +57,17 @@ run_all_tests() {
     TASK_ID=$(curl -s -X POST "http://localhost:8001/tasks?channel=sviluppo_ui" -H "Content-Type: application/json" -d '{"title":"Fix a bug"}' | jq -r '.id')
     assert_equals "string" "$( [ -n "$TASK_ID" ] && echo "string")" "Task creato con successo con un ID."
     
+    echo "Attendo la propagazione del task (12s)..."
+    sleep 12
+
     wait_for_condition "curl -s http://localhost:8002/state | jq -e --arg tid \"$TASK_ID\" '.sviluppo_ui.tasks[$tid] | .status == \"open\"'" "Propagazione task al Nodo 2"
 
     echo "Eseguo il claim del task..."
     curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/claim?channel=sviluppo_ui" -d '' > /dev/null
     
+    echo "Attendo la propagazione del claim (12s)..."
+    sleep 12
+
     wait_for_condition "curl -s http://localhost:8001/state | jq -e --arg tid \"$TASK_ID\" '.sviluppo_ui.tasks[$tid] | .status == \"claimed\"'" "Propagazione claim al Nodo 1"
 
     echo "Completo il task..."
