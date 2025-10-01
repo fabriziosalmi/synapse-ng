@@ -50,8 +50,9 @@ run_all_tests() {
     print_header "SCENARIO 1: AVVIO A FREDDO (3 NODI)"
     docker-compose up --build -d rendezvous node-1 node-2 node-3
     wait_for_node_count 8001 3
-    assert_equals 3 "$(curl -s http://localhost:8002/state | jq '.global.nodes | length')" "Nodo 2 vede 3 nodi"
-    assert_equals 3 "$(curl -s http://localhost:8003/state | jq '.global.nodes | length')" "Nodo 3 vede 3 nodi"
+    wait_for_node_count 8002 3
+    wait_for_node_count 8003 3
+    echo "Tutti i nodi hanno raggiunto la convergenza."
 
     # 2. INGRESSO NUOVO NODO
     print_header "SCENARIO 2: INGRESSO NUOVO NODO"

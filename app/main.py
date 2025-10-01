@@ -68,8 +68,6 @@ KX_PUBLIC_KEY_B64 = base64.urlsafe_b64encode(x25519_private_key.public_key().pub
 # --- Strutture Dati e Lock per la Concorrenza ---
 class GossipPacket(BaseModel): channel_id: str; payload: str; sender_id: str; signature: str
 class CreateTaskPayload(BaseModel): title: str
-class CreateProposalPayload(BaseModel): title: str; description: str
-class VotePayload(BaseModel): choice: Literal['yes', 'no']
 
 state_lock = asyncio.Lock()
 
@@ -84,6 +82,8 @@ network_state["global"]["nodes"][NODE_ID] = {
     "id": NODE_ID, "url": OWN_URL, "kx_public_key": KX_PUBLIC_KEY_B64,
     "last_seen": time.time(), "version": 1
 }
+
+VALID_TASK_TRANSITIONS = {"open": {"claimed"}, "claimed": {"in_progress"}, "in_progress": {"completed"}}
 
 # --- Endpoint di Base ---
 @app.get("/", response_class=HTMLResponse)
@@ -103,18 +103,6 @@ async def get_state():
 async def get_subscribed_channels():
     return list(subscribed_channels)
 
-# --- Endpoint Canali ---
-@app.post("/channels/join")
-async def join_channel(payload: Dict[str, str]):
-    channel_id = payload.get("channel_id")
-    if not channel_id or channel_id == "global": raise HTTPException(400, "Nome canale non valido.")
-    async with state_lock:
-        subscribed_channels.add(channel_id)
-        if channel_id not in network_state:
-            network_state[channel_id] = {"participants": set(), "tasks": {}, "proposals": {}}
-        network_state[channel_id]["participants"].add(NODE_ID)
-    return {"message": f"Sottoscritto al canale {channel_id}"}
-
 # --- Endpoint Task ---
 @app.post("/tasks", status_code=201)
 async def create_task(payload: CreateTaskPayload, channel: str):
@@ -128,21 +116,6 @@ async def create_task(payload: CreateTaskPayload, channel: str):
     async with state_lock:
         network_state[channel]["tasks"][task_id] = new_task
     return new_task
-
-# --- Endpoint Governance ---
-@app.post("/proposals", status_code=201)
-async def create_proposal(payload: CreateProposalPayload, channel: str):
-    if channel not in subscribed_channels: raise HTTPException(400, "Canale non sottoscritto.")
-    proposal_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    new_proposal = {
-        "id": proposal_id, "author": NODE_ID, "title": payload.title, "description": payload.description,
-        "created_at": now.isoformat(), "voting_closes_at": (now + timedelta(days=3)).isoformat(),
-        "status": "open", "votes": {}, "updated_at": now.isoformat()
-    }
-    async with state_lock:
-        network_state[channel]["proposals"][proposal_id] = new_proposal
-    return new_proposal
 
 # --- Logica di Rete e Gossip ---
 @app.post("/gossip")
@@ -159,45 +132,42 @@ async def receive_gossip(packet: GossipPacket):
     async with state_lock:
         incoming_state = json.loads(packet.payload)
         local_state = network_state.setdefault(channel_id, {"participants": set(), "tasks": {}, "proposals": {}})
+        
         if channel_id == "global":
+            # Merge dei nodi globali
             for nid, ndata in incoming_state.get("nodes", {}).items():
-                if nid != NODE_ID and (nid not in local_state["nodes"] or ndata.get("last_seen", 0) > local_state["nodes"][nid].get("last_seen", 0)):
+                if nid != NODE_ID and (nid not in local_state.get("nodes", {}) or ndata.get("last_seen", 0) > local_state["nodes"][nid].get("last_seen", 0)):
                     local_state["nodes"][nid] = ndata
         else:
+            # Merge dei partecipanti per canali tematici
             local_state["participants"].update(incoming_state.get("participants", []))
-        # Merge Tasks (Logica LWW con validazione di stato)
+
+        # Logica di merge completa per Task e Proposte in QUALSIASI canale
+        # Merge Tasks (LWW con validazione)
         for tid, itask in incoming_state.get("tasks", {}).items():
             ltask = local_state.get("tasks", {}).get(tid)
-
             if not ltask:
                 local_state["tasks"][tid] = itask
                 continue
+            if itask.get("updated_at", "") > ltask.get("updated_at", ""):
+                if itask.get("status") != ltask.get("status"):
+                    allowed = VALID_TASK_TRANSITIONS.get(ltask.get("status"), set())
+                    if itask.get("status") not in allowed:
+                        continue
+                local_state["tasks"][tid] = itask
 
-            # Se l'aggiornamento ricevuto non è più recente, ignora
-            if itask["updated_at"] <= ltask["updated_at"]:
-                continue
-
-            # Validazione della transizione di stato
-            if itask["status"] != ltask["status"]:
-                allowed_transitions = VALID_TASK_TRANSITIONS.get(ltask["status"], set())
-                if itask["status"] not in allowed_transitions:
-                    logging.warning(f"Ignorata transizione di stato non valida per task {tid}: da '{ltask["status"]}' a '{itask["status"]}'")
-                    continue # Ignora questo aggiornamento specifico
-            
-            # Se tutte le validazioni passano, accetta l'aggiornamento
-            local_state["tasks"][tid] = itask
-
-        # Merge Proposals
+        # Merge Proposals (LWW ibrido)
         for pid, iprop in incoming_state.get("proposals", {}).items():
             lprop = local_state.get("proposals", {}).get(pid)
             if not lprop:
                 local_state["proposals"][pid] = iprop
             else:
-                merged_votes = lprop["votes"].copy()
+                merged_votes = lprop.get("votes", {}).copy()
                 merged_votes.update(iprop.get("votes", {}))
-                if iprop["updated_at"] > lprop["updated_at"]:
+                if iprop.get("updated_at", "") > lprop.get("updated_at", ""):
                     lprop.update(iprop)
                 lprop["votes"] = merged_votes
+
     return await create_signed_packet(channel_id)
 
 async def create_signed_packet(channel_id: str) -> dict:
@@ -251,7 +221,6 @@ async def network_maintenance_loop():
             except Exception: pass
         await asyncio.sleep(random.uniform(5, 10))
 
-# --- Funzioni Helper e Background Tasks ---
 def calculate_reputations(full_state: dict) -> Dict[str, int]:
     reputations = {node_id: 0 for node_id in full_state.get("global", {}).get("nodes", {})}
     for channel_id, channel_data in full_state.items():
