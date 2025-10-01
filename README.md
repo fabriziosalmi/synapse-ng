@@ -229,13 +229,28 @@ POST /p2p/signal/receive
 
 ### Test Suite Completa
 
-Testa convergenza, WebRTC, PubSub, task lifecycle, reputazione.
+Testa convergenza, WebRTC, PubSub, task lifecycle, reputazione, economia e governance.
 
 ```bash
+# Tutti i test (base + economia + governance)
 ./test_suite.sh
+
+# Solo test base
+./test_suite.sh base
+
+# Solo test governance (voto ponderato)
+./test_suite.sh governance
+
+# Solo test economia (Synapse Points)
+./test_suite.sh economy
+
+# Mostra opzioni
+./test_suite.sh help
 ```
 
 **Scenari testati:**
+
+**Test Base (Scenari 1-6):**
 1. ✅ Avvio a freddo (3 nodi)
 2. ✅ Connessioni WebRTC (verifica peer connections e data channels)
 3. ✅ Sottoscrizioni PubSub (verifica topic subscriptions)
@@ -243,10 +258,20 @@ Testa convergenza, WebRTC, PubSub, task lifecycle, reputazione.
 5. ✅ Task lifecycle completo (create → claim → progress → complete)
 6. ✅ Sistema reputazione (+10 per task completati)
 
+**Test Economia e Governance (Scenari 7-8):**
+7. ✅ **Voto Ponderato**: Verifica che nodi con alta reputazione abbiano più influenza (peso = 1 + log₂(rep + 1))
+8. ✅ **Economia SP**: Verifica trasferimento deterministico di Synapse Points (creazione task con reward, congelamento SP, trasferimento al completamento)
+
+**📚 Documentazione Test:**
+- `TEST_ECONOMIA_GOVERNANCE.md` - Documentazione completa
+- `QUICK_START_TESTS.md` - Guida rapida
+- `ESEMPI_API_TEST.md` - Esempi API per test manuali
+
 **⚠️ Note sui Test:**
 - Tutti i nodi devono essere sottoscritti agli stessi canali per i test cross-node
 - I timeout sono calibrati per WebRTC + PubSub (più lenti del gossip HTTP diretto)
 - La test suite viene eseguita automaticamente nel pre-push git hook
+- I test economia/governance verificano il determinismo: tutti i nodi devono concordare su balance e voti
 
 ### Test WebRTC + SynapseSub
 

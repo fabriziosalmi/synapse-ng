@@ -161,7 +161,7 @@
     </div>
 
     <!-- Selettore Canali -->
-    <div id="channel-selector" style="top: 450px;">
+    <div id="channel-selector" style="top: 500px;">
         <label for="channel-select">🔍 Canale Focus:</label>
         <select id="channel-select">
             <option value="global">🌐 Global (Tutti)</option>
@@ -811,9 +811,6 @@
                 <div>${i+1}. ${node.id.substring(0, 8)}... (<span class="stat-value">${node.reputation || 0}</span>)</div>
             `).join('');
             document.getElementById('top-nodes-rep').innerHTML = topNodesHtml;
-
-            const state = uiData.state;
-            const stats = uiData.network_stats;
 
             // Pannello Nodo Locale
             const localNode = state.global.nodes[window.LOCAL_NODE_ID];

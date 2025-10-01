@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test - Synapse-NG</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+        }
+        #log {
+            background: #000;
+            padding: 10px;
+            border: 1px solid #00ff00;
+            height: 500px;
+            overflow-y: scroll;
+        }
+        .error { color: #ff0000; }
+        .success { color: #00ff00; }
+        .info { color: #00aaff; }
+    </style>
+</head>
+<body>
+    <h1>🔌 WebSocket Debug - Synapse-NG</h1>
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `<div class="${type}">[${time}] ${msg}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        addLog('🚀 Avvio test WebSocket...', 'info');
+        addLog('📍 Connessione a ws://localhost:8001/ws', 'info');
+
+        try {
+            const ws = new WebSocket('ws://localhost:8001/ws');
+
+            ws.onopen = () => {
+                addLog('✅ WebSocket CONNESSO!', 'success');
+            };
+
+            ws.onmessage = (event) => {
+                addLog('📨 Messaggio ricevuto:', 'success');
+                try {
+                    const data = JSON.parse(event.data);
+                    addLog(JSON.stringify(data, null, 2), 'info');
+                } catch (e) {
+                    addLog(event.data, 'info');
+                }
+            };
+
+            ws.onerror = (error) => {
+                addLog('❌ ERRORE WebSocket: ' + error, 'error');
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = (event) => {
+                addLog(`🔌 WebSocket CHIUSO: code=${event.code}, reason=${event.reason}`, 'error');
+            };
+
+            // Test: Invia un messaggio dopo 2 secondi
+            setTimeout(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    addLog('📤 Invio messaggio di test...', 'info');
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                } else {
+                    addLog('❌ WebSocket non aperto, stato: ' + ws.readyState, 'error');
+                }
+            }, 2000);
+
+        } catch (error) {
+            addLog('❌ ECCEZIONE: ' + error.message, 'error');
+            console.error('Exception:', error);
+        }
+
+        // Test fetch dello stato
+        addLog('📡 Test fetch /state...', 'info');
+        fetch('http://localhost:8001/state')
+            .then(res => res.json())
+            .then(data => {
+                addLog('✅ /state OK - ' + Object.keys(data.global.nodes).length + ' nodi trovati', 'success');
+            })
+            .catch(err => {
+                addLog('❌ /state FALLITO: ' + err, 'error');
+            });
+
+        // Test fetch network stats
+        addLog('📡 Test fetch /network/stats...', 'info');
+        fetch('http://localhost:8001/network/stats')
+            .then(res => res.json())
+            .then(data => {
+                addLog('✅ /network/stats OK - ' + data.webrtc_connections.total_established + ' connessioni WebRTC', 'success');
+            })
+            .catch(err => {
+                addLog('❌ /network/stats FALLITO: ' + err, 'error');
+            });
+    </script>
+</body>
+</html>
