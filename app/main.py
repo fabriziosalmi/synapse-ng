@@ -165,10 +165,29 @@ async def receive_gossip(packet: GossipPacket):
                     local_state["nodes"][nid] = ndata
         else:
             local_state["participants"].update(incoming_state.get("participants", []))
+        # Merge Tasks (Logica LWW con validazione di stato)
         for tid, itask in incoming_state.get("tasks", {}).items():
             ltask = local_state.get("tasks", {}).get(tid)
-            if not ltask or itask["updated_at"] > ltask["updated_at"]:
+
+            if not ltask:
                 local_state["tasks"][tid] = itask
+                continue
+
+            # Se l'aggiornamento ricevuto non è più recente, ignora
+            if itask["updated_at"] <= ltask["updated_at"]:
+                continue
+
+            # Validazione della transizione di stato
+            if itask["status"] != ltask["status"]:
+                allowed_transitions = VALID_TASK_TRANSITIONS.get(ltask["status"], set())
+                if itask["status"] not in allowed_transitions:
+                    logging.warning(f"Ignorata transizione di stato non valida per task {tid}: da '{ltask["status"]}' a '{itask["status"]}'")
+                    continue # Ignora questo aggiornamento specifico
+            
+            # Se tutte le validazioni passano, accetta l'aggiornamento
+            local_state["tasks"][tid] = itask
+
+        # Merge Proposals
         for pid, iprop in incoming_state.get("proposals", {}).items():
             lprop = local_state.get("proposals", {}).get(pid)
             if not lprop:
