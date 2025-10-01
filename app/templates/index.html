@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Synapse-NG Node</title>
+    <script>
+        // Inietta l'ID del nodo locale in una variabile globale JS
+        window.LOCAL_NODE_ID = "{{ node_id }}";
+    </script>
     <script type="importmap">
     {
         "imports": {
@@ -13,161 +17,28 @@
     }
     </script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
-            color: #fff;
-            font-family: 'Courier New', monospace;
-            overflow: hidden;
-        }
-
-        #info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px 20px;
-            border: 2px solid #00ff88;
-            border-radius: 8px;
-            z-index: 100;
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
-        }
-
-        #info strong {
-            color: #00ff88;
-            font-size: 16px;
-            letter-spacing: 2px;
-        }
-
-        #node-id {
-            margin: 8px 0;
-            font-size: 13px;
-            color: #aaa;
-        }
-
-        #node-count {
-            margin-top: 8px;
-            font-size: 13px;
-            color: #00ff88;
-        }
-
-        #canvas-container {
-            width: 100vw;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
-        }
-
-        #controls {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px 20px;
-            border: 2px solid #444;
-            border-radius: 8px;
-            z-index: 100;
-            font-size: 11px;
-            color: #aaa;
-        }
-
-        #controls strong {
-            color: #00ff88;
-        }
-
-        #legend {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px 20px;
-            border: 2px solid #444;
-            border-radius: 8px;
-            z-index: 100;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-        }
-
-        #legend strong {
-            color: #00ff88;
-            font-size: 14px;
-            letter-spacing: 1px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin: 8px 0;
-            font-size: 12px;
-        }
-
-        .legend-color {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            margin-right: 12px;
-            border: 3px solid #fff;
-            box-shadow: 0 0 8px currentColor;
-        }
-
-        #topology-info {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px 20px;
-            border: 2px solid #444;
-            border-radius: 8px;
-            z-index: 100;
-            width: 280px;
-            font-size: 11px;
-            line-height: 1.6;
-            color: #aaa;
-        }
-
-        #topology-info strong {
-            color: #00ff88;
-        }
-        #topology-info .alert {
-            color: #ff4444;
-            font-weight: bold;
-        }
+        body { margin: 0; background: #0a0a0a; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; }
+        .panel { position: absolute; background: rgba(0, 0, 0, 0.85); padding: 15px 20px; border: 2px solid #444; border-radius: 8px; z-index: 100; font-size: 12px; line-height: 1.6; color: #aaa; }
+        .panel strong { color: #00ff88; font-size: 14px; letter-spacing: 1px; }
+        #info { top: 20px; left: 20px; border-color: #00ff88; box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
+        #topology-info { bottom: 20px; right: 20px; width: 280px; }
+        #controls { top: 20px; right: 20px; }
+        #canvas-container { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; }
     </style>
 </head>
 <body>
-    <div id="info">
+    <div id="info" class="panel">
         <div><strong>Synapse-NG Node</strong></div>
-        <div id="node-id"></div>
-        <div id="node-count">Nodi: 0</div>
+        <div id="node-id" style="margin: 8px 0;">ID: ...</div>
+        <div id="node-count">Nodi Attivi: 0</div>
     </div>
 
-    <div id="legend">
-        <div><strong>Legenda</strong></div>
-        <div class="legend-item">
-            <div class="legend-color" style="background-color: #00ff00;"></div>
-            <span>LAN Network</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background-color: #ff6600;"></div>
-            <span>WAN Network</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background-color: #ff00ff;"></div>
-            <span>Bridge Node</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background-color: #ffff00;"></div>
-            <span>Candidate Node</span>
-        </div>
+    <div id="topology-info" class="panel">
+        <strong>Analisi di Rete</strong><br><br>
+        <div id="topology-content">In attesa di dati...</div>
     </div>
 
-    <div id="topology-info">
-        <strong>Topologia Rete</strong><br><br>
-        <div id="topology-content">Analisi in corso...</div>
-    </div>
-
-    <div id="controls">
+    <div id="controls" class="panel">
         <strong>Controlli 3D</strong><br><br>
         🖱️ Rotazione: Drag sinistro<br>
         🔍 Zoom: Scroll mouse<br>
@@ -180,32 +51,18 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // THREE.JS Setup
         let scene, camera, renderer, controls;
-        let nodeMeshes = {};
-        let linkLines = [];
-        let labelSprites = {};
-
-        const typeColors = {
-            'lan': 0x00ff00,
-            'wan': 0xff6600,
-            'unknown': 0x666666
-        };
-
-        // Task 3: Colori per status
-        const statusColors = {
-            'bridge': 0xff00ff,      // Magenta
-            'candidate': 0xffff00,   // Giallo
-            'standard': null         // Usa colore del tipo
-        };
+        const nodeMeshes = {};
+        const linkLines = [];
+        const labelSprites = {};
 
         function init() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0a0a0a);
-            scene.fog = new THREE.Fog(0x0a0a0a, 500, 2000);
+            scene.fog = new THREE.Fog(0x0a0a0a, 600, 2500);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 3000);
-            camera.position.set(0, 150, 600);
+            camera.position.set(0, 200, 700);
 
             const container = document.getElementById('canvas-container');
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -215,258 +72,151 @@
 
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
             controls.minDistance = 100;
-            controls.maxDistance = 1500;
+            controls.maxDistance = 1800;
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
             directionalLight.position.set(100, 200, 100);
             scene.add(directionalLight);
 
-            const gridHelper = new THREE.GridHelper(1000, 20, 0x00ff88, 0x333333);
-            gridHelper.position.y = -150;
+            const gridHelper = new THREE.GridHelper(1500, 30, 0x00ff88, 0x333333);
+            gridHelper.position.y = -200;
             scene.add(gridHelper);
 
-            window.addEventListener('resize', onWindowResize, false);
-            animate();
-        }
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            animate();
         }
 
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
-            Object.values(labelSprites).forEach(sprite => {
-                if (sprite && sprite.parent) {
-                    sprite.quaternion.copy(camera.quaternion);
-                }
-            });
+            Object.values(labelSprites).forEach(sprite => sprite.quaternion.copy(camera.quaternion));
             renderer.render(scene, camera);
         }
 
-        function createTextSprite(text, color = '#ffffff') {
+        function createTextSprite(text, color = '#ffffff', fontSize = 32) {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
-            canvas.width = 256;
-            canvas.height = 128;
+            canvas.width = 256; canvas.height = 128;
             context.fillStyle = color;
-            context.font = 'Bold 32px Courier New';
+            context.font = `Bold ${fontSize}px Courier New`;
             context.textAlign = 'center';
             context.fillText(text, 128, 64);
             const texture = new THREE.CanvasTexture(canvas);
-            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
-            const sprite = new THREE.Sprite(spriteMaterial);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
             sprite.scale.set(100, 50, 1);
             return sprite;
         }
 
-        function getLinkColor(sourceNode, targetNode) {
-            const sType = sourceNode.type || 'unknown';
-            const tType = targetNode.type || 'unknown';
-            const sStatus = sourceNode.status || 'standard';
-            const tStatus = targetNode.status || 'standard';
-
-            if (sStatus === 'bridge' || tStatus === 'bridge') return statusColors.bridge;
-            if (sStatus === 'candidate' || tStatus === 'candidate') return statusColors.candidate;
-            if (sType === tType) return typeColors[sType];
-            return 0x00ffff; // Connessione mista non-bridge (anomalia?)
-        }
-
         function updateGraph(nodes, links) {
             const allNodeIds = nodes.map(n => n.id);
-            
-            // Rimuovi nodi e label non più presenti
+
             Object.keys(nodeMeshes).forEach(id => {
                 if (!allNodeIds.includes(id)) {
-                    const mesh = nodeMeshes[id];
-                    scene.remove(mesh);
-                    if (labelSprites[id]) {
-                        mesh.remove(labelSprites[id].idLabel);
-                        mesh.remove(labelSprites[id].typeLabel);
-                    }
+                    scene.remove(nodeMeshes[id]);
                     delete nodeMeshes[id];
                     delete labelSprites[id];
                 }
             });
 
-            // Rimuovi vecchi link
             linkLines.forEach(line => scene.remove(line));
-            linkLines = [];
+            linkLines.length = 0;
 
             const nodeMap = {};
             nodes.forEach((node, i) => {
                 let sphere = nodeMeshes[node.id];
                 if (!sphere) {
-                    const geometry = new THREE.SphereGeometry(20, 32, 32);
-                    const material = new THREE.MeshPhongMaterial({ shininess: 100 });
+                    const geometry = new THREE.SphereGeometry(15, 32, 32);
+                    const material = new THREE.MeshPhongMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.2, shininess: 100 });
                     sphere = new THREE.Mesh(geometry, material);
 
                     const angle = (i / nodes.length) * Math.PI * 2;
                     const radius = 350;
-                    sphere.position.set(Math.cos(angle) * radius, -100, Math.sin(angle) * radius);
+                    sphere.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
 
-                    const idLabel = createTextSprite(node.id.substring(0, 8), '#ffffff');
-                    idLabel.position.set(0, 45, 0);
+                    const idLabel = createTextSprite(node.id.substring(0, 8));
+                    idLabel.position.set(0, 35, 0);
                     sphere.add(idLabel);
-
-                    const typeLabel = createTextSprite(node.type.toUpperCase(), '#aaaaaa');
-                    typeLabel.position.set(0, -45, 0);
-                    typeLabel.scale.set(80, 40, 1);
-                    sphere.add(typeLabel);
+                    labelSprites[node.id] = idLabel;
 
                     scene.add(sphere);
                     nodeMeshes[node.id] = sphere;
-                    labelSprites[node.id] = { idLabel, typeLabel };
                 }
 
-                // Task 3: Aggiorna colore in base allo status
-                const finalColor = statusColors[node.status] || typeColors[node.type] || typeColors.unknown;
-                sphere.material.color.setHex(finalColor);
-                sphere.material.emissive.setHex(finalColor);
-                sphere.material.emissiveIntensity = 0.4;
+                // Colora il nodo locale di un colore diverso per identificarlo
+                if (node.id === window.LOCAL_NODE_ID) {
+                    sphere.material.color.setHex(0xffffff); // Bianco
+                    sphere.material.emissive.setHex(0xffffff);
+                } else {
+                    sphere.material.color.setHex(0x00ff88); // Verde
+                    sphere.material.emissive.setHex(0x00ff88);
+                }
 
-                // Task 1: Mappa l'età del nodo all'asse Y
-                const nodeAge = (Date.now() / 1000) - node.creation_timestamp;
-                const targetY = -100 + Math.min(nodeAge, 300); // Sale per 5 minuti max
-                // Anima dolcemente la transizione
+                // Mappa la reputazione all'altezza (asse Y)
+                const targetY = -150 + Math.min(node.reputation * 5, 400);
                 sphere.position.y += (targetY - sphere.position.y) * 0.05;
 
                 nodeMap[node.id] = sphere.position;
             });
 
-            // Crea link
             links.forEach(link => {
-                const sourcePos = nodeMap[link.source];
-                const targetPos = nodeMap[link.target];
-
-                if (sourcePos && targetPos) {
-                    const sourceNode = nodes.find(n => n.id === link.source);
-                    const targetNode = nodes.find(n => n.id === link.target);
-                    const color = getLinkColor(sourceNode, targetNode);
-
-                    const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5, linewidth: 2 });
-                    const geometry = new THREE.BufferGeometry().setFromPoints([sourcePos, targetPos]);
+                if (nodeMap[link.source] && nodeMap[link.target]) {
+                    const geometry = new THREE.BufferGeometry().setFromPoints([nodeMap[link.source], nodeMap[link.target]]);
+                    const material = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.3 });
                     const line = new THREE.Line(geometry, material);
                     scene.add(line);
                     linkLines.push(line);
                 }
             });
-
-            document.getElementById("node-count").textContent = `Nodi: ${nodes.length}`;
         }
 
-        // Task 2: Analisi dinamica della topologia
-        function analyzeTopology(nodes, links) {
-            const analysis = [];
-            const nodeMap = new Map(nodes.map(n => [n.id, n]));
+        function analyzeTopology(networkState) {
+            const globalChannel = networkState.global || { nodes: {} };
+            const nodeCount = Object.keys(globalChannel.nodes).length;
+            document.getElementById("node-count").textContent = `Nodi Attivi: ${nodeCount}`;
 
-            const lanNodes = nodes.filter(n => n.type === 'lan').length;
-            const wanNodes = nodes.filter(n => n.type === 'wan').length;
-            const bridgeNodes = nodes.filter(n => n.status === 'bridge').length;
-
-            let lan_lan_links = 0;
-            let wan_wan_links = 0;
-            let anomalous_links = 0;
-
-            links.forEach(link => {
-                const source = nodeMap.get(link.source);
-                const target = nodeMap.get(link.target);
-                if (!source || !target) return;
-
-                const isSourceLan = source.type === 'lan';
-                const isTargetLan = target.type === 'lan';
-                const isSourceWan = source.type === 'wan';
-                const isTargetWan = target.type === 'wan';
-
-                if (isSourceLan && isTargetLan) lan_lan_links++;
-                if (isSourceWan && isTargetWan) wan_wan_links++;
-                
-                // Un link è anomalo se connette LAN e WAN e nessuno dei due è un bridge
-                if ((isSourceLan && isTargetWan) || (isSourceWan && isTargetLan)) {
-                    if (source.status !== 'bridge' && target.status !== 'bridge') {
-                        anomalous_links++;
-                    }
-                }
-            });
-
-            if (lanNodes > 1) analysis.push(`• Rilevata rete di ${lanNodes} nodi LAN.`);
-            if (wanNodes > 1) analysis.push(`• Rilevata rete di ${wanNodes} nodi WAN.`);
-            
-            if (bridgeNodes === 1) analysis.push(`• Trovato 1 Bridge che connette le reti.`);
-            else if (bridgeNodes > 1) analysis.push(`• Allarme: ${bridgeNodes} bridge in conflitto!`);
-            else analysis.push(`• Nessun bridge attivo rilevato.`);
-
-            if (anomalous_links > 0) {
-                analysis.push(`<span class="alert">• Allarme: Rilevata connessione anomala LAN &lt;-&gt; WAN!</span>`);
-            } else {
-                analysis.push(`• Conferma: Nessuna connessione diretta LAN &lt;-&gt; WAN.`);
+            let analysisHtml = ``;
+            for (const channelId in networkState) {
+                if (channelId === 'global') continue;
+                const channel = networkState[channelId];
+                const participants = channel.participants?.length || 0;
+                const tasks = channel.tasks ? Object.keys(channel.tasks).length : 0;
+                analysisHtml += `• <strong>${channelId}:</strong> ${participants} part., ${tasks} task<br>`;
             }
-
-            document.getElementById('topology-content').innerHTML = analysis.join('<br>');
+            document.getElementById('topology-content').innerHTML = analysisHtml || "Nessun canale tematico attivo.";
         }
 
-        // Inizializza Three.js
         init();
 
-        // WebSocket per aggiornamenti in tempo reale
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        // Imposta l'ID del nodo locale nel pannello info
+        if (window.LOCAL_NODE_ID) {
+            document.getElementById("node-id").textContent = `ID: ${window.LOCAL_NODE_ID.substring(0, 8)}`;
+        }
 
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
         ws.onmessage = (event) => {
             const networkState = JSON.parse(event.data);
-            const nodes = Object.values(networkState);
 
-            // Crea link basati sulla topologia logica
+            const nodes = networkState.global ? Object.values(networkState.global.nodes) : [];
+            if (nodes.length === 0) return;
+
             const links = [];
-            const nodesByType = {
-                lan: nodes.filter(n => n.type === 'lan'),
-                wan: nodes.filter(n => n.type === 'wan')
-            };
-            const bridgeNode = nodes.find(n => n.status === 'bridge');
-
-            // Link intra-rete
-            function createIntraNetworkLinks(group) {
-                for (let i = 0; i < group.length; i++) {
-                    for (let j = i + 1; j < group.length; j++) {
-                        links.push({ source: group[i].id, target: group[j].id });
-                    }
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    links.push({ source: nodes[i].id, target: nodes[j].id });
                 }
             }
-            createIntraNetworkLinks(nodesByType.lan);
-            createIntraNetworkLinks(nodesByType.wan);
 
-            // Il bridge connette a tutti i nodi LAN e WAN
-            if (bridgeNode) {
-                nodesByType.lan.forEach(lanNode => links.push({ source: bridgeNode.id, target: lanNode.id }));
-                nodesByType.wan.forEach(wanNode => {
-                    if (wanNode.id !== bridgeNode.id) {
-                        links.push({ source: bridgeNode.id, target: wanNode.id });
-                    }
-                });
-            }
-            
             updateGraph(nodes, links);
-            analyzeTopology(nodes, links);
+            analyzeTopology(networkState);
         };
-
-        ws.onopen = () => console.log("WebSocket connesso");
-        ws.onerror = (error) => console.error("WebSocket errore:", error);
-
-        // Mostra ID del nodo corrente
-        fetch('/state')
-            .then(r => r.json())
-            .then(state => {
-                const nodeIds = Object.keys(state);
-                const localNodeId = Object.values(state).find(n => n.url.includes(window.location.port))?.id;
-                if (localNodeId) {
-                    document.getElementById("node-id").textContent = `ID: ${localNodeId.substring(0, 8)}`;
-                }
-            });
     </script>
 </body>
 </html>

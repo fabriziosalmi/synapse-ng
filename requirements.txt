@@ -1,7 +1,5 @@
 fastapi
 uvicorn[standard]
-jinja2
 httpx
-zeroconf
 cryptography
-aiortc
+Jinja2
