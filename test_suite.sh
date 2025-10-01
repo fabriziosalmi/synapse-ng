@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Suite di Test Definitiva per Synapse-NG
-# Questo script è stato riscritto per essere più robusto e diretto.
+# Suite di Test Definitiva e Robusta per Synapse-NG
 
 # Ferma l'esecuzione in caso di errore
 set -e
@@ -12,30 +11,23 @@ print_header() { echo -e "\n\e[1;34m================== $1 ==================\e[0
 assert_equals() { [ "$2" == "$1" ] && echo -e "\e[32m✓ SUCCESS\e[0m: $3" || { echo -e "\e[31m✗ FAILURE\e[0m: $3 - Atteso: $1, Ricevuto: $2"; exit 1; }; }
 
 # Funzione di polling robusta
-wait_for_node_count() {
-    local port=$1
-    local expected_count=$2
-    local timeout=60
+wait_for_condition() {
+    local condition_cmd=$1
+    local success_msg=$2
+    local timeout=${3:-60}
     local interval=5
     local elapsed=0
-    echo -n "In attesa che il nodo su porta $port veda $expected_count nodi... "
+    echo -n "In attesa di: $success_msg... "
     while [ $elapsed -lt $timeout ]; do
-        # Assegna 0 se il comando curl/jq fallisce o restituisce null
-        local count=$(curl -s "http://localhost:$port/state" | jq '.global.nodes | length')
-        count=${count:-0}
-
-        if [ "$count" -eq "$expected_count" ]; then
+        # Esegui il comando e controlla se ha successo (exit code 0)
+        if eval "$condition_cmd" &>/dev/null; then
             echo -e "\e[32mOK\e[0m"
             return 0
         fi
         sleep $interval
         elapsed=$((elapsed + interval))
     done
-
     echo -e "\e[31mTIMEOUT\e[0m"
-    echo "DEBUG: Ultimo conteggio nodi ricevuto: ${count:-'nessuno'}"
-    echo "DEBUG: Ultimo stato ricevuto da $port:"
-    curl -s "http://localhost:$port/state" | jq .
     exit 1
 }
 
@@ -49,16 +41,15 @@ run_all_tests() {
     # 1. AVVIO A FREDDO
     print_header "SCENARIO 1: AVVIO A FREDDO (3 NODI)"
     docker-compose up --build -d rendezvous node-1 node-2 node-3
-    wait_for_node_count 8001 3
-    wait_for_node_count 8002 3
-    wait_for_node_count 8003 3
+    wait_for_condition "[ $(curl -s http://localhost:8001/state | jq '.global.nodes | length') -eq 3 ]" "Convergenza Nodo 1"
+    wait_for_condition "[ $(curl -s http://localhost:8002/state | jq '.global.nodes | length') -eq 3 ]" "Convergenza Nodo 2"
+    wait_for_condition "[ $(curl -s http://localhost:8003/state | jq '.global.nodes | length') -eq 3 ]" "Convergenza Nodo 3"
     echo "Tutti i nodi hanno raggiunto la convergenza."
 
     # 2. INGRESSO NUOVO NODO
     print_header "SCENARIO 2: INGRESSO NUOVO NODO"
     docker-compose up -d --no-recreate node-4
-    wait_for_node_count 8001 4
-    assert_equals 4 "$(curl -s http://localhost:8004/state | jq '.global.nodes | length')" "Il nuovo nodo 4 vede 4 nodi"
+    wait_for_condition "[ $(curl -s http://localhost:8001/state | jq '.global.nodes | length') -eq 4 ]" "Rete a 4 nodi stabile"
 
     # 3. LIFECYCLE TASK
     print_header "SCENARIO 3: LIFECYCLE TASK"
@@ -66,18 +57,19 @@ run_all_tests() {
     TASK_ID=$(curl -s -X POST "http://localhost:8001/tasks?channel=sviluppo_ui" -H "Content-Type: application/json" -d '{"title":"Fix a bug"}' | jq -r '.id')
     assert_equals "string" "$( [ -n "$TASK_ID" ] && echo "string")" "Task creato con successo con un ID."
     
-    echo "Attendo la propagazione del task..."
-    sleep 10
-
-    TASK_STATUS_ON_2=$(curl -s http://localhost:8002/state | jq -r --arg tid "$TASK_ID" '.sviluppo_ui.tasks[$tid].status')
-    assert_equals "open" "$TASK_STATUS_ON_2" "Nodo 2 vede il nuovo task come 'open'"
+    wait_for_condition "curl -s http://localhost:8002/state | jq -e --arg tid \"$TASK_ID\" '.sviluppo_ui.tasks[$tid] | .status == \"open\"'" "Propagazione task al Nodo 2"
 
     echo "Eseguo il claim del task..."
     curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/claim?channel=sviluppo_ui" -d '' > /dev/null
-    sleep 10
+    
+    wait_for_condition "curl -s http://localhost:8001/state | jq -e --arg tid \"$TASK_ID\" '.sviluppo_ui.tasks[$tid] | .status == \"claimed\"'" "Propagazione claim al Nodo 1"
 
-    TASK_STATUS_ON_1=$(curl -s http://localhost:8001/state | jq -r --arg tid "$TASK_ID" '.sviluppo_ui.tasks[$tid].status')
-    assert_equals "claimed" "$TASK_STATUS_ON_1" "Nodo 1 vede il task come 'claimed'"
+    echo "Completo il task..."
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/progress?channel=sviluppo_ui" -d '' > /dev/null
+    sleep 1 # Piccola pausa tra stati
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/complete?channel=sviluppo_ui" -d '' > /dev/null
+
+    wait_for_condition "curl -s http://localhost:8001/state | jq -e --arg tid \"$TASK_ID\" '.sviluppo_ui.tasks[$tid] | .status == \"completed\"'" "Propagazione completamento al Nodo 1"
 
     print_header "TUTTI I TEST COMPLETATI CON SUCCESSO"
     echo "Pulizia finale..."

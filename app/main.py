@@ -117,7 +117,48 @@ async def create_task(payload: CreateTaskPayload, channel: str):
         network_state[channel]["tasks"][task_id] = new_task
     return new_task
 
-# --- Logica di Rete e Gossip ---
+@app.delete("/tasks/{task_id}", status_code=200)
+async def delete_task(task_id: str, channel: str):
+    if channel not in network_state or task_id not in network_state[channel]["tasks"]: raise HTTPException(404, "Task non trovato nel canale specificato")
+    async with state_lock:
+        task = network_state[channel]["tasks"][task_id]
+        if task["owner"] != NODE_ID: raise HTTPException(403, "Non sei il proprietario del task.")
+        task["is_deleted"] = True
+        task["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return task
+
+@app.post("/tasks/{task_id}/claim", status_code=200)
+async def claim_task(task_id: str, channel: str):
+    if channel not in network_state or task_id not in network_state[channel]["tasks"]: raise HTTPException(404, "Task non trovato")
+    async with state_lock:
+        task = network_state[channel]["tasks"][task_id]
+        if task["status"] != "open": raise HTTPException(400, f"Impossibile prendere in carico il task: stato attuale '{task['status']}'")
+        task["status"] = "claimed"
+        task["assignee"] = NODE_ID
+        task["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return task
+
+@app.post("/tasks/{task_id}/progress", status_code=200)
+async def progress_task(task_id: str, channel: str):
+    if channel not in network_state or task_id not in network_state[channel]["tasks"]: raise HTTPException(404, "Task non trovato")
+    async with state_lock:
+        task = network_state[channel]["tasks"][task_id]
+        if task["assignee"] != NODE_ID or task["status"] != "claimed": raise HTTPException(403, "Azione non permessa o stato non valido.")
+        task["status"] = "in_progress"
+        task["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return task
+
+@app.post("/tasks/{task_id}/complete", status_code=200)
+async def complete_task(task_id: str, channel: str):
+    if channel not in network_state or task_id not in network_state[channel]["tasks"]: raise HTTPException(404, "Task non trovato")
+    async with state_lock:
+        task = network_state[channel]["tasks"][task_id]
+        if task["assignee"] != NODE_ID or task["status"] != "in_progress": raise HTTPException(403, "Azione non permessa o stato non valido.")
+        task["status"] = "completed"
+        task["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return task
+
+# --- Endpoint Governance ---
 @app.post("/gossip")
 async def receive_gossip(packet: GossipPacket):
     try:
@@ -143,17 +184,26 @@ async def receive_gossip(packet: GossipPacket):
             local_state["participants"].update(incoming_state.get("participants", []))
 
         # Logica di merge completa per Task e Proposte in QUALSIASI canale
-        # Merge Tasks (LWW con validazione)
+        # Merge Tasks (Logica LWW con validazione) - VERSIONE CORRETTA
         for tid, itask in incoming_state.get("tasks", {}).items():
             ltask = local_state.get("tasks", {}).get(tid)
+
+            # Caso 1: Il task è completamente nuovo per questo nodo.
             if not ltask:
                 local_state["tasks"][tid] = itask
                 continue
+
+            # Caso 2: Il task esiste, applica la regola Last-Write-Wins.
+            # Prosegui solo se l'aggiornamento ricevuto è più recente.
             if itask.get("updated_at", "") > ltask.get("updated_at", ""):
+                # Validazione opzionale: se lo stato è cambiato, la transizione è valida?
                 if itask.get("status") != ltask.get("status"):
-                    allowed = VALID_TASK_TRANSITIONS.get(ltask.get("status"), set())
-                    if itask.get("status") not in allowed:
-                        continue
+                    allowed_transitions = VALID_TASK_TRANSITIONS.get(ltask.get("status"), set())
+                    if itask.get("status") not in allowed_transitions:
+                        logging.warning(f"Ignorata transizione di stato non valida per task {tid}")
+                        continue # Salta al prossimo task
+                
+                # Se la transizione è valida (o lo stato non è cambiato), accetta l'aggiornamento.
                 local_state["tasks"][tid] = itask
 
         # Merge Proposals (LWW ibrido)
