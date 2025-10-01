@@ -50,14 +50,14 @@ run_all_tests() {
 
     # 1. AVVIO A FREDDO
     print_header "SCENARIO 1: AVVIO A FREDDO (3 NODI)"
-    docker-compose up --build -d --scale node=3
+    docker-compose up --build -d rendezvous node-1 node-2 node-3
     wait_for_condition "[ $(get_node_count 8001) -eq 3 ]" "Nodo 1 vede 3 nodi"
     assert_equals 3 "$(get_node_count 8002)" "Nodo 2 vede 3 nodi"
     assert_equals 3 "$(get_node_count 8003)" "Nodo 3 vede 3 nodi"
 
     # 2. INGRESSO NUOVO NODO
     print_header "SCENARIO 2: INGRESSO NUOVO NODO"
-    docker-compose up -d --scale node=4 --no-recreate
+    docker-compose up -d --no-recreate node-4
     wait_for_condition "[ $(get_node_count 8001) -eq 4 ]" "Nodo 1 vede 4 nodi"
     assert_equals 4 "$(get_node_count 8004)" "Il nuovo nodo 4 vede 4 nodi"
 
