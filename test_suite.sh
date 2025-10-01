@@ -34,12 +34,12 @@ wait_for_condition() {
     exit 1
 }
 
-# --- Funzioni di Test Specifiche ---
+# --- Funzioni di Test Specifiche (rese più robuste) ---
 
-get_node_id() { api_get $1 "/state" | jq -r --arg url \"http://node-$2:8000\" '.global.nodes[] | select(.url == $url) | .id'; }
-get_node_count() { api_get $1 "/state" | jq '.global.nodes | length'; }
-get_task_status() { api_get $1 "/state" | jq -r --arg ch "$2" --arg tid "$3" '.[$ch].tasks[$tid].status'; }
-get_reputation() { api_get $1 "/state" | jq --arg nid "$2" '.global.nodes[$nid].reputation'; }
+get_node_id() { local result=$(api_get $1 "/state" 2>/dev/null | jq -r --arg url \"http://node-$2:8000\" '.global.nodes[] | select(.url == $url) | .id' 2>/dev/null); echo "${result:-null}"; }
+get_node_count() { local result=$(api_get $1 "/state" 2>/dev/null | jq '.global.nodes | length' 2>/dev/null); echo "${result:-0}"; }
+get_task_status() { local result=$(api_get $1 "/state" 2>/dev/null | jq -r --arg ch "$2" --arg tid "$3" '.[$ch].tasks[$tid].status' 2>/dev/null); echo "${result:-null}"; }
+get_reputation() { local result=$(api_get $1 "/state" 2>/dev/null | jq --arg nid "$2" '.global.nodes[$nid].reputation' 2>/dev/null); echo "${result:-0}"; }
 
 # --- Scenari di Test ---
 
