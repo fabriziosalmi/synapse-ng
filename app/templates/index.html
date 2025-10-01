@@ -81,7 +81,7 @@
         /* Selettore Canali */
         #channel-selector {
             position: absolute;
-            top: 150px;
+            top: 200px;
             left: 20px;
             background: rgba(0, 0, 0, 0.9);
             padding: 15px;
@@ -517,17 +517,27 @@
             });
 
             // ===== CREA LINK =====
+            // Step 1: Crea un set di connessioni WebRTC per tracking
             const webrtcConnections = networkStats.webrtc_connections.peers;
+            const drawnLinks = new Set(); // Per evitare duplicati
 
-            // Link WebRTC diretti (priorità massima)
+            // Helper per creare chiave univoca per link
+            const getLinkKey = (id1, id2) => {
+                return [id1, id2].sort().join('|');
+            };
+
+            // Step 2: Link WebRTC dal nodo locale
             Object.entries(webrtcConnections).forEach(([peerId, peerData]) => {
-                if (nodeMap[NODE_ID] && nodeMap[peerId]) {
+                if (nodeMap[window.LOCAL_NODE_ID] && nodeMap[peerId]) {
+                    const linkKey = getLinkKey(window.LOCAL_NODE_ID, peerId);
+                    if (drawnLinks.has(linkKey)) return;
+                    drawnLinks.add(linkKey);
+
                     const isOpen = peerData.data_channel === 'open';
                     const isInMesh = isChannelFocused
-                        ? (participantsInChannel.includes(NODE_ID) && participantsInChannel.includes(peerId))
+                        ? (participantsInChannel.includes(window.LOCAL_NODE_ID) && participantsInChannel.includes(peerId))
                         : true;
 
-                    // Link solido per WebRTC aperto
                     const geometry = new THREE.BufferGeometry().setFromPoints([
                         nodeMap[window.LOCAL_NODE_ID],
                         nodeMap[peerId]
@@ -535,10 +545,9 @@
 
                     let material;
                     if (isOpen && isInMesh) {
-                        // Link WebRTC attivo nella mesh: brillante e spesso
+                        // Link WebRTC attivo nella mesh: brillante ciano
                         material = new THREE.LineBasicMaterial({
                             color: 0x00ffff,
-                            linewidth: 3,
                             transparent: false
                         });
                     } else if (isOpen) {
@@ -568,29 +577,84 @@
                 }
             });
 
-            // Link "scoperto" (tratteggiato scuro) tra nodi non connessi
-            nodes.forEach(node => {
-                if (node.id !== window.LOCAL_NODE_ID && !webrtcConnections[node.id]) {
-                    // Questo nodo è conosciuto ma non connesso via WebRTC
-                    if (nodeMap[window.LOCAL_NODE_ID] && nodeMap[node.id]) {
-                        const geometry = new THREE.BufferGeometry().setFromPoints([
-                            nodeMap[window.LOCAL_NODE_ID],
-                            nodeMap[node.id]
-                        ]);
-                        const material = new THREE.LineDashedMaterial({
-                            color: 0x333333,
-                            dashSize: 5,
-                            gapSize: 10,
-                            transparent: true,
-                            opacity: 0.2
-                        });
-                        const line = new THREE.Line(geometry, material);
-                        line.computeLineDistances();
-                        scene.add(line);
-                        linkLines.push(line);
+            // Step 3: Link tra tutti i nodi partecipanti allo stesso canale (mesh visualization)
+            // Questo crea una mesh visibile tra i nodi che collaborano
+            if (isChannelFocused && participantsInChannel.length > 1) {
+                for (let i = 0; i < participantsInChannel.length; i++) {
+                    for (let j = i + 1; j < participantsInChannel.length; j++) {
+                        const node1 = participantsInChannel[i];
+                        const node2 = participantsInChannel[j];
+
+                        const linkKey = getLinkKey(node1, node2);
+                        if (drawnLinks.has(linkKey)) continue; // Già disegnato come WebRTC
+                        drawnLinks.add(linkKey);
+
+                        if (nodeMap[node1] && nodeMap[node2]) {
+                            // Link mesh: sottile verde
+                            const geometry = new THREE.BufferGeometry().setFromPoints([
+                                nodeMap[node1],
+                                nodeMap[node2]
+                            ]);
+                            const material = new THREE.LineBasicMaterial({
+                                color: 0x00ff88,
+                                transparent: true,
+                                opacity: 0.2
+                            });
+                            const line = new THREE.Line(geometry, material);
+                            scene.add(line);
+                            linkLines.push(line);
+                        }
                     }
                 }
-            });
+            } else if (!isChannelFocused) {
+                // Modalità Global: Mostra tutti i link tra nodi (mesh completa)
+                for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const node1 = nodes[i].id;
+                        const node2 = nodes[j].id;
+
+                        const linkKey = getLinkKey(node1, node2);
+                        if (drawnLinks.has(linkKey)) continue; // Già disegnato come WebRTC
+                        drawnLinks.add(linkKey);
+
+                        if (nodeMap[node1] && nodeMap[node2]) {
+                            // Verifica se almeno uno è connesso via WebRTC
+                            const hasWebRTC = webrtcConnections[node1] || webrtcConnections[node2];
+
+                            const geometry = new THREE.BufferGeometry().setFromPoints([
+                                nodeMap[node1],
+                                nodeMap[node2]
+                            ]);
+
+                            let material;
+                            if (hasWebRTC) {
+                                // Almeno uno ha WebRTC: link verde sottile
+                                material = new THREE.LineBasicMaterial({
+                                    color: 0x00ff88,
+                                    transparent: true,
+                                    opacity: 0.3
+                                });
+                            } else {
+                                // Nessuna connessione WebRTC: link "scoperto" grigio tratteggiato
+                                material = new THREE.LineDashedMaterial({
+                                    color: 0x333333,
+                                    dashSize: 5,
+                                    gapSize: 10,
+                                    transparent: true,
+                                    opacity: 0.15
+                                });
+                            }
+
+                            const line = new THREE.Line(geometry, material);
+                            if (material.type === 'LineDashedMaterial') {
+                                line.computeLineDistances();
+                            }
+                            scene.add(line);
+                            linkLines.push(line);
+                        }
+                    }
+                }
+            }
         }
 
         // ===== AGGIORNAMENTO HUD =====
