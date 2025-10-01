@@ -1,202 +1,380 @@
 # Synapse-NG (Next Generation)
 
-**Un organismo digitale decentralizzato, ora scalabile e intelligente.**
+**Un organismo digitale decentralizzato, scalabile e intelligente.**
 
-Synapse-NG è una rete peer-to-peer che si auto-organizza come un organismo vivente. Non esiste autorità centrale, nessun server, nessun leader. Ogni nodo è un agente autonomo che collabora per formare una coscienza collettiva, prendere decisioni e portare a termine compiti.
-
-Grazie a un'architettura a **canali (sharding)**, la rete è in grado di scalare gestendo contesti multipli e isolati, garantendo efficienza e flessibilità.
+Synapse-NG è una rete peer-to-peer completamente decentralizzata che si auto-organizza come un organismo vivente. Non esiste autorità centrale, nessun server obbligatorio, nessun leader. Ogni nodo è un agente autonomo che collabora per formare una coscienza collettiva, prendere decisioni e portare a termine compiti.
 
 ## 🧬 Filosofia
 
 Ogni nodo è un "neurone" sovrano. La rete "vive" attraverso principi fondamentali:
 
 - **Identità Sovrana**: Ogni nodo possiede la propria identità crittografica (Ed25519), immutabile e non falsificabile.
-- **Gossip Intelligente**: I nodi "chiacchierano" per sincronizzare lo stato, ma solo per i canali di interesse comune, riducendo drasticamente il carico di rete.
-- **Consenso senza Conflitti (CRDT)**: Lo stato condiviso (task, voti) converge matematicamente allo stesso risultato su tutti i nodi, anche in presenza di latenza di rete e aggiornamenti concorrenti.
-- **Intelligenza Collettiva**: La rete può prendere decisioni tramite un sistema di proposte e voti, e misura il merito dei suoi membri attraverso un punteggio di reputazione dinamico.
-- **Comunicazione Sicura**: I nodi possono stabilire canali di chat privati e cifrati end-to-end.
+- **Comunicazione P2P**: Connessioni WebRTC dirette tra peer, senza intermediari.
+- **Gossip Intelligente**: Protocollo SynapseSub topic-based per sincronizzare solo ciò che serve.
+- **Consenso senza Conflitti (CRDT)**: Lo stato condiviso converge matematicamente allo stesso risultato su tutti i nodi.
+- **Bootstrap Decentralizzato**: Nessun server centrale obbligatorio, bootstrap da peer esistenti.
+- **Intelligenza Collettiva**: Sistema di proposte, voti e reputazione distribuito.
 
-## ✨ Features
+## ✨ Architettura SynapseComms v2.0
 
-Synapse-NG è evoluto da una semplice rete di discovery a una piattaforma per l'organizzazione decentralizzata.
+Synapse-NG implementa un'architettura di comunicazione a tre livelli:
 
-- **Architettura a Canali (Sharding)**: Lo stato globale è partizionato in "canali" tematici. I nodi sottoscrivono solo i canali di loro interesse, garantendo la scalabilità.
-- **Identità Criptografica Forte**: L'ID di ogni nodo è la sua chiave pubblica Ed25519. Ogni comunicazione è firmata digitalmente e verificata.
-- **Discovery Dinamico**: Un semplice **Rendezvous Server** permette ai nodi di trovarsi a vicenda senza configurazioni statiche, facilitando il bootstrap della rete.
-- **Gestione Task Decentralizzata**: Un sistema completo per creare, assegnare e completare task. La sincronizzazione è gestita da CRDT (Last-Write-Wins & Observed-Remove Sets) per garantire coerenza.
-- **Governance On-Chain**: La rete può auto-governarsi tramite un sistema di proposte e votazioni. Le decisioni vengono ratificate in modo decentralizzato.
-- **Reputazione Dinamica**: Ogni nodo calcola localmente un punteggio di reputazione per tutti gli altri, basato su contributi verificabili come il completamento di task e la partecipazione alla governance.
-- **Chat Privata E2E Cifrata**: I nodi possono stabilire canali di comunicazione privati utilizzando un protocollo di crittografia ibrida (X25519 + AES-GCM).
+### **Livello 1: WebRTC Transport Layer**
+- Connessioni P2P dirette tra nodi
+- `RTCDataChannel` per comunicazione bidirezionale
+- Supporto signaling sia centralizzato che P2P
 
-## 🚀 Quick Start
+### **Livello 2: SynapseSub Protocol**
+- PubSub topic-based su WebRTC
+- Mesh di peer per ogni topic
+- Deduplica automatica messaggi
+- Forward intelligente basato su interesse
+
+### **Livello 3: Application Layer**
+- Canali tematici (sharding)
+- Task management distribuito
+- Governance e voting
+- Sistema di reputazione
+
+```
+┌─────────────────────────────────────────────────┐
+│            APPLICATION LAYER                    │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐     │
+│  │ Channels │  │  Tasks   │  │Governance│     │
+│  └──────────┘  └──────────┘  └──────────┘     │
+├─────────────────────────────────────────────────┤
+│          SYNAPSESUB PROTOCOL                    │
+│  ┌──────────────────────────────────────┐      │
+│  │  PubSub Topics + Message Routing     │      │
+│  │  ANNOUNCE | MESSAGE | I_HAVE | ...   │      │
+│  └──────────────────────────────────────┘      │
+├─────────────────────────────────────────────────┤
+│         WEBRTC TRANSPORT LAYER                  │
+│  ┌──────────────────────────────────────┐      │
+│  │   RTCPeerConnection + DataChannel     │      │
+│  │   P2P Signaling (tunneling)           │      │
+│  └──────────────────────────────────────┘      │
+└─────────────────────────────────────────────────┘
+```
+
+## 🚀 Features
+
+### **Comunicazione**
+- ✅ **WebRTC P2P**: Connessioni dirette tra nodi, bassa latenza
+- ✅ **SynapseSub**: Protocollo PubSub ottimizzato per mesh network
+- ✅ **Topic-based routing**: Solo i dati rilevanti vengono trasmessi
+- ✅ **Deduplica automatica**: Cache di messaggi visti
+
+### **Decentralizzazione**
+- ✅ **Bootstrap P2P**: Handshake con peer esistenti
+- ✅ **P2P Signaling**: Tunneling attraverso peer connessi
+- ✅ **Rendezvous opzionale**: Server centrale solo per facilità
+- ✅ **Nessun SPOF**: Nessun single point of failure
+
+### **Task Management**
+- ✅ **Canali tematici**: Partizionamento logico dei task
+- ✅ **Lifecycle completo**: open → claimed → in_progress → completed
+- ✅ **Propagazione CRDT**: Convergenza garantita
+- ✅ **Validazione transizioni**: Solo agli endpoint API
+
+### **Governance**
+- ✅ **Sistema di proposte**: Ogni nodo può proporre cambiamenti
+- ✅ **Voting distribuito**: Voti propagati via gossip
+- ✅ **Reputazione dinamica**: Basata su contributi (+10 task, +1 voto)
+
+## 📦 Installazione
 
 ### Requisiti
 - Docker & Docker Compose
-- `curl` e `jq` (per interagire e visualizzare l'output JSON)
+- Python 3.9+ (per sviluppo locale)
+- `jq` (per test scripts)
 
-### Avvia la Rete
-
-Il `docker-compose.yml` avvia un ecosistema completo: un Rendezvous Server e tre nodi Synapse-NG.
+### Quick Start (Modalità Rendezvous)
 
 ```bash
-# Avvia tutti i servizi in background
+# Clone
+git clone https://github.com/your-org/synapse-ng.git
+cd synapse-ng
+
+# Avvia rete con Rendezvous Server
 docker-compose up --build -d
+
+# Verifica stato
+curl http://localhost:8001/state | jq '.global.nodes | length'
+
+# Run test suite
+./test_suite.sh
 ```
 
-Apri i pannelli di controllo dei singoli nodi nel browser:
-- **Nodo 1**: http://localhost:8001
-- **Nodo 2**: http://localhost:8002
-- **Nodo 3**: http://localhost:8003
+### Quick Start (Modalità P2P Pura)
 
-Per fermare la rete:
 ```bash
-docker-compose down -v # L'opzione -v rimuove anche i volumi con le chiavi
+# Avvia rete completamente decentralizzata
+docker-compose -f docker-compose.p2p.yml up --build -d
+
+# Verifica connessioni P2P
+curl http://localhost:8001/webrtc/connections | jq
+
+# Run test P2P
+./test_p2p.sh
 ```
 
-## 🔬 Esempi di Interazione con cURL
+## ⚙️ Configurazione
 
-Dopo aver avviato la rete, apri un terminale e usa questi comandi per interagire con i nodi.
+### Variabili d'Ambiente
 
-### 1. Controllare lo Stato di un Nodo
-```bash
-# Interroga lo stato completo visto dal nodo 1
-curl -s http://localhost:8001/state | jq
-```
+| Variabile | Descrizione | Richiesto | Default |
+|-----------|-------------|-----------|---------|
+| `OWN_URL` | URL di questo nodo | ✅ Sì | - |
+| `RENDEZVOUS_URL` | URL del Rendezvous Server | ⚠️ Solo per modalità Rendezvous | - |
+| `BOOTSTRAP_NODES` | Lista di peer bootstrap (CSV) | ⚠️ Solo per modalità P2P | - |
+| `SUBSCRIBED_CHANNELS` | Canali da sottoscrivere (CSV) | No | "" |
+| `NODE_PORT` | Porta del nodo | No | 8000 |
 
-### 2. Gestire i Canali
-```bash
-# Fai in modo che il nodo 1 si unisca al canale "marketing"
-curl -s -X POST http://localhost:8001/channels/join -H "Content-Type: application/json" -d '{"channel_id": "marketing"}' | jq
+### Modalità Operative
 
-# Verifica che il nodo 1 sia ora iscritto a 3 canali (global, sviluppo_ui, marketing)
-curl -s http://localhost:8001/channels | jq
-```
+#### **Modalità 1: Rendezvous (Più semplice)**
 
-### 3. Creare e Gestire un Task
-```bash
-# Nodo 2 crea un nuovo task nel canale "sviluppo_ui"
-TASK_ID=$(curl -s -X POST "http://localhost:8002/tasks?channel=sviluppo_ui&title=Refactor+del+motore+3D" | jq -r '.id')
-echo "Task creato con ID: $TASK_ID"
-
-# Attendi qualche secondo per il gossip, poi verifica che il nodo 1 veda il task
-sleep 8
-curl -s http://localhost:8001/state | jq '.sviluppo_ui.tasks["'$TASK_ID'"]
-
-# Nodo 1 prende in carico il task
-curl -s -X POST "http://localhost:8001/tasks/$TASK_ID/claim?channel=sviluppo_ui" | jq
-```
-
-### 4. Partecipare alla Governance
-```bash
-# Nodo 3 crea una proposta di governance nel canale globale
-PROP_ID=$(curl -s -X POST "http://localhost:8003/proposals?channel=global" -H "Content-Type: application/json" -d '{"title": "Aumentare il budget per il marketing", "description": "Propongo di raddoppiare il budget."}' | jq -r '.id')
-echo "Proposta creata con ID: $PROP_ID"
-
-sleep 8
-
-# Nodo 1 e 2 votano sulla proposta
-curl -s -X POST "http://localhost:8001/proposals/$PROP_ID/vote?channel=global" -H "Content-Type: application/json" -d '{"choice": "yes"}' > /dev/null
-curl -s -X POST "http://localhost:8002/proposals/$PROP_ID/vote?channel=global" -H "Content-Type: application/json" -d '{"choice": "no"}' > /dev/null
-
-# Verifica lo stato dei voti sul nodo 3
-curl -s http://localhost:8003/state | jq '.global.proposals["'$PROP_ID'"].votes'
-```
-
-## 🔧 Configurazione Nodo
-
-La configurazione di un nodo avviene tramite variabili d'ambiente nel file `docker-compose.yml`.
+Usa un server centrale per discovery e signaling.
 
 ```yaml
-# Esempio di configurazione per un nodo
 environment:
-  - NODE_PORT=8000
-  # L'URL del server di discovery
-  - RENDEZVOUS_URL=http://rendezvous:8080
-  # L'URL pubblico che questo nodo userà per registrarsi
   - OWN_URL=http://node-1:8000
-  # Lista di canali tematici a cui iscriversi all'avvio (separati da virgola)
-  - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
+  - RENDEZVOUS_URL=http://rendezvous:8080
+  - SUBSCRIBED_CHANNELS=sviluppo_ui
 ```
 
-## 🏗️ Architettura
+**Pro**: Setup semplice, discovery automatico
+**Contro**: Punto centrale di fallimento
 
-### Stack Tecnologico
-- **Backend**: FastAPI (Python 3.9+)
-- **Crittografia**: `cryptography` (Ed25519 per le firme, X25519 per lo scambio chiavi, AES-GCM per la cifratura simmetrica)
-- **Frontend**: La UI 3D (in `index.html`) è un visualizzatore che interpreta lo stato ricevuto via WebSocket.
+#### **Modalità 2: P2P Puro (Decentralizzato)**
 
-### Struttura Progetto
+Nessun server centrale, bootstrap da peer esistenti.
+
+```yaml
+environment:
+  - OWN_URL=http://node-2:8000
+  - BOOTSTRAP_NODES=http://node-1:8000,http://node-3:8000
+  - SUBSCRIBED_CHANNELS=sviluppo_ui
+```
+
+**Pro**: Completamente decentralizzato, resiliente
+**Contro**: Richiede almeno un bootstrap node
+
+## 📡 API Endpoints
+
+### **Stato e Monitoring**
+
+```bash
+# Stato globale della rete
+GET /state
+
+# Canali sottoscritti
+GET /channels
+
+# Connessioni WebRTC
+GET /webrtc/connections
+
+# Statistiche PubSub
+GET /pubsub/stats
+```
+
+### **Task Management**
+
+```bash
+# Crea task
+POST /tasks?channel=CHANNEL_ID
+Content-Type: application/json
+{"title": "Fix bug"}
+
+# Prendi in carico
+POST /tasks/{task_id}/claim?channel=CHANNEL_ID
+
+# Segna in progresso
+POST /tasks/{task_id}/progress?channel=CHANNEL_ID
+
+# Completa
+POST /tasks/{task_id}/complete?channel=CHANNEL_ID
+
+# Elimina
+DELETE /tasks/{task_id}?channel=CHANNEL_ID
+```
+
+### **Bootstrap P2P**
+
+```bash
+# Handshake iniziale
+POST /bootstrap/handshake
+{"peer_id": "NODE_ID", "peer_url": "http://node:8000"}
+
+# Relay signaling P2P
+POST /p2p/signal/relay
+{"from_peer": "ID_A", "to_peer": "ID_C", "type": "offer", "payload": {...}}
+
+# Ricevi signaling P2P
+POST /p2p/signal/receive
+{"from_peer": "ID_A", "type": "answer", "payload": {...}}
+```
+
+## 🧪 Testing
+
+### Test Suite Completa
+
+Testa convergenza, WebRTC, PubSub, task lifecycle, reputazione.
+
+```bash
+./test_suite.sh
+```
+
+**Scenari testati:**
+1. ✅ Avvio a freddo (3 nodi)
+2. ✅ Connessioni WebRTC
+3. ✅ Sottoscrizioni PubSub
+4. ✅ Ingresso nuovo nodo
+5. ✅ Task lifecycle completo
+6. ✅ Sistema reputazione
+
+### Test WebRTC + SynapseSub
+
+```bash
+./test_webrtc.sh
+```
+
+**Verifica:**
+- Connessioni WebRTC dirette
+- Statistiche PubSub
+- Gossip via DataChannel
+- Logs di debugging
+
+### Test P2P Decentralizzato
+
+```bash
+./test_p2p.sh
+```
+
+**Verifica:**
+- Bootstrap da peer
+- P2P signaling tunneling
+- Gossip senza Rendezvous
+- Rete completamente autonoma
+
+## 🏗️ Architettura Dettagliata
+
+### Struttura File
+
 ```
 synapse-ng/
-├── app/                  # Codice del nodo Synapse-NG
-│   ├── main.py           # Server FastAPI con tutta la logica
-│   └── templates/
-│       └── index.html    # Visualizzazione 3D
-├── rendezvous/           # Codice del server di discovery
-│   ├── main.py
-│   └── Dockerfile
-├── docker-compose.yml    # Orchestra l'intera rete
-└── README.md             # Questo file
+├── app/
+│   ├── main.py                    # Application server
+│   ├── webrtc_manager.py          # WebRTC connection manager
+│   ├── synapsesub_protocol.py     # PubSub protocol
+│   ├── identity.py                # Identità crittografica
+│   └── templates/                 # UI templates
+├── rendezvous/
+│   └── main.py                    # Rendezvous server (opzionale)
+├── docker-compose.yml             # Config Rendezvous mode
+├── docker-compose.p2p.yml         # Config P2P mode
+├── test_suite.sh                  # Test completo
+├── test_webrtc.sh                 # Test WebRTC/PubSub
+├── test_p2p.sh                    # Test P2P puro
+└── README.md                      # Questo file
 ```
 
-### Protocollo di Gossip Channel-Aware
+### Flusso di Comunicazione
 
-Il vecchio approccio "inonda tutti" è stato sostituito da un protocollo più efficiente:
-
-1.  **Handshake**: Nodo A contatta un peer B e chiede `GET /channels`.
-2.  **Intersezione**: Nodo A calcola i canali in comune con B.
-3.  **Gossip Mirato**: Nodo A invia un pacchetto di gossip firmato per ogni canale in comune, usando `POST /gossip`. Il pacchetto contiene `channel_id` per specificare il contesto.
-
-Questo riduce drasticamente la ridondanza e permette alla rete di scalare a un gran numero di canali e nodi.
-
-### Stato della Rete (Multi-Canale)
-
-Lo stato non è più monolitico. È un dizionario di canali. Il canale `global` è speciale e contiene la "verità" sui nodi e la governance di sistema.
-
-```json
-{
-  "global": {
-    "nodes": {
-      "NODE_ID_1": { "id": "...", "url": "...", "kx_public_key": "...", "reputation": 50 }
-    },
-    "proposals": { /* Proposte a livello di rete */ }
-  },
-  "sviluppo_ui": {
-    "participants": ["NODE_ID_1", "NODE_ID_2"],
-    "tasks": { /* Task relativi alla UI */ },
-    "proposals": { /* Proposte relative alla UI */ }
-  }
-}
+```
+┌─────────┐                      ┌─────────┐
+│ Node A  │                      │ Node B  │
+└────┬────┘                      └────┬────┘
+     │                                │
+     │ 1. Bootstrap/Discovery         │
+     │───────────────────────────────>│
+     │                                │
+     │ 2. WebRTC Signaling            │
+     │<──────────────────────────────>│
+     │   (Rendezvous o P2P Tunnel)    │
+     │                                │
+     │ 3. RTCDataChannel Aperto       │
+     │<═══════════════════════════════>│
+     │                                │
+     │ 4. ANNOUNCE Topic              │
+     │───SynapseSub──────────────────>│
+     │                                │
+     │ 5. MESSAGE (Gossip)            │
+     │<══SynapseSub══════════════════>│
+     │    Topic: channel:dev:state    │
+     │                                │
+     │ 6. Forward ad altri peer       │
+     │         nella mesh             │
+     └────────────────────────────────┘
 ```
 
-## 📊 API Endpoints Principali
+### CRDT e Convergenza
 
-La maggior parte degli endpoint richiede un parametro di query `?channel=...` per specificare il contesto.
+Lo stato distribuito usa **Last-Write-Wins (LWW)** basato su timestamp:
 
-- `GET /state`: Stato completo (con reputazione calcolata) visibile dal nodo.
-- `GET /channels`: Restituisce i canali sottoscritti (usato per l'handshake).
-- `POST /channels/join` & `/leave`: Per iscriversi o lasciare un canale.
+```python
+# Merge logic (app/main.py:196-201)
+if incoming_task["updated_at"] > local_task["updated_at"]:
+    local_state["tasks"][task_id] = incoming_task
+```
 
-- `POST /gossip`: Endpoint principale per la sincronizzazione (riceve pacchetti per canale).
+- **Validazione transizioni**: Solo negli endpoint API
+- **Nel gossip**: Timestamp è fonte di verità
+- **Convergenza**: Garantita matematicamente (CRDT)
 
-- `POST /tasks?channel=...`: Crea un task in un canale specifico.
-- `POST /tasks/{id}/claim?channel=...`: Prende in carico un task.
+### Sistema di Reputazione
 
-- `POST /proposals?channel=...`: Crea una proposta in un canale.
-- `POST /proposals/{id}/vote?channel=...`: Vota una proposta.
+```
+Azioni che incrementano reputazione:
+- Completamento task: +10
+- Voto su proposta: +1
 
-- `POST /chat/initiate`: Stabilisce una sessione di chat E2E cifrata.
-- `POST /chat/send/{recipient_id}`: Invia un messaggio cifrato.
+Calcolo (app/main.py:606-613):
+for task in channel.tasks:
+    if task.status == "completed":
+        reputation[task.assignee] += 10
 
-## 🔮 Visione Futura
+for proposal in channel.proposals:
+    for voter_id in proposal.votes:
+        reputation[voter_id] += 1
+```
 
-Con questa architettura scalabile, le possibilità sono immense:
+## 🔮 Roadmap Futura
 
-- **Inter-Channel Communication**: Nodi "bridge" che inoltrano selettivamente informazioni tra canali.
-- **Reputazione Ponderata**: Il voto di un nodo con alta reputazione potrebbe valere di più.
-- **Storage Decentralizzato**: Integrare IPFS per associare file a task o proposte.
-- **Plugin e Smart Contract**: Un sistema per eseguire codice custom in modo sicuro all'interno della rete.
+- [ ] **mDNS Discovery**: Discovery locale senza bootstrap
+- [ ] **DHT**: Distributed Hash Table per lookup peer
+- [ ] **Encryption E2E**: Cifratura payload oltre a WebRTC
+- [ ] **NAT Traversal**: STUN/TURN integrati
+- [ ] **Mobile Nodes**: Supporto nodi mobili/intermittenti
+- [ ] **Sharding Dinamico**: Bilanciamento automatico canali
+- [ ] **Consensus avanzato**: Raft/PBFT per decisioni critiche
+
+## 🤝 Contributing
+
+Contributi benvenuti! Per feature importanti, apri prima una issue per discutere.
+
+```bash
+# Setup sviluppo
+pip install -r requirements.txt
+
+# Run local node
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+## 📄 License
+
+MIT License - vedi [LICENSE](LICENSE) per dettagli.
+
+## 🙏 Acknowledgments
+
+Ispirato da:
+- **libp2p**: Modular P2P networking stack
+- **GossipSub**: PubSub protocol per mesh networks
+- **WebRTC**: Standard P2P per il web
+- **IPFS**: InterPlanetary File System
+- **Holochain**: Agent-centric distributed computing
 
 ---
 
-**"La rete non ha centro. La rete È il centro."**
+**Synapse-NG** - Dove ogni nodo è un neurone, e insieme formano un organismo vivente. 🧠✨
