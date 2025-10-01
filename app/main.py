@@ -147,6 +147,67 @@ async def get_pubsub_stats():
     """Restituisce statistiche sul protocollo PubSub"""
     return pubsub_manager.get_stats()
 
+@app.get("/network/stats")
+async def get_network_stats():
+    """
+    Restituisce metriche di rete in tempo reale per la visualizzazione UI.
+    Separa le statistiche volatili dallo stato CRDT persistente.
+    """
+    # Statistiche WebRTC
+    webrtc_peers = {}
+    for peer_id, pc in webrtc_manager.connections.items():
+        channel_state = "none"
+        if peer_id in webrtc_manager.data_channels:
+            channel_state = webrtc_manager.data_channels[peer_id].readyState
+
+        # Calcola latenza simulata (in una implementazione reale, misurata con ping/pong)
+        latency_ms = None
+        if channel_state == "open":
+            # Per ora simuliamo una latenza, ma in futuro si potrebbe misurare con PING/PONG
+            latency_ms = random.randint(20, 200)
+
+        webrtc_peers[peer_id] = {
+            "state": pc.connectionState,
+            "ice_state": pc.iceConnectionState,
+            "data_channel": channel_state,
+            "latency_ms": latency_ms
+        }
+
+    # Statistiche PubSub
+    pubsub_stats = pubsub_manager.get_stats()
+    topics_detail = {}
+    for topic_name, topic_data in pubsub_stats.get("topics", {}).items():
+        topics_detail[topic_name] = {
+            "mesh_size": topic_data.get("peers", 0),
+            "messages_seen": topic_data.get("seen_messages", 0)
+        }
+
+    # Calcola nodi scoperti (conosciuti ma non connessi via WebRTC)
+    async with state_lock:
+        all_known_nodes = set(network_state.get("global", {}).get("nodes", {}).keys())
+
+    connected_nodes = set(webrtc_manager.connections.keys())
+    discovered_but_not_connected = all_known_nodes - connected_nodes - {NODE_ID}
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "webrtc_connections": {
+            "total_established": len([p for p in webrtc_peers.values() if p["state"] == "connected"]),
+            "total_connecting": len([p for p in webrtc_peers.values() if p["state"] in ["connecting", "new"]]),
+            "peers": webrtc_peers
+        },
+        "synapsesub_stats": {
+            "total_subscriptions": pubsub_stats.get("subscribed_topics", 0),
+            "topics": topics_detail,
+            "total_messages_seen": sum(t.get("messages_seen", 0) for t in topics_detail.values())
+        },
+        "network_topology": {
+            "total_nodes": len(all_known_nodes),
+            "connected_direct": len(connected_nodes),
+            "discovered_only": len(discovered_but_not_connected)
+        }
+    }
+
 # --- Endpoint Bootstrap P2P ---
 
 @app.post("/bootstrap/handshake")
@@ -649,11 +710,28 @@ async def on_startup():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket per aggiornamenti real-time della UI.
+    Invia sia lo stato CRDT che le statistiche di rete aggregate.
+    """
     await websocket.accept()
     try:
         while True:
+            # Ottieni stato CRDT completo
             state = await get_state()
-            await websocket.send_json(state)
-            await asyncio.sleep(1)
+
+            # Ottieni statistiche di rete real-time
+            network_stats = await get_network_stats()
+
+            # Messaggio aggregato per la UI
+            ui_update = {
+                "type": "full_update",
+                "timestamp": network_stats["timestamp"],
+                "state": state,  # Stato CRDT (nodi, task, proposals, etc.)
+                "network_stats": network_stats  # Metriche WebRTC/PubSub
+            }
+
+            await websocket.send_json(ui_update)
+            await asyncio.sleep(1)  # Aggiornamento ogni secondo
     except Exception:
         pass

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Synapse-NG Node</title>
+    <title>Synapse-NG Node - Console Operativa</title>
     <script>
         // Inietta l'ID del nodo locale in una variabile globale JS
         window.LOCAL_NODE_ID = "{{ node_id }}";
@@ -17,32 +17,166 @@
     }
     </script>
     <style>
-        body { margin: 0; background: #0a0a0a; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; }
-        .panel { position: absolute; background: rgba(0, 0, 0, 0.85); padding: 15px 20px; border: 2px solid #444; border-radius: 8px; z-index: 100; font-size: 12px; line-height: 1.6; color: #aaa; }
-        .panel strong { color: #00ff88; font-size: 14px; letter-spacing: 1px; }
-        #info { top: 20px; left: 20px; border-color: #00ff88; box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
-        #topology-info { bottom: 20px; right: 20px; width: 280px; }
-        #controls { top: 20px; right: 20px; }
-        #canvas-container { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+        /* Pannelli HUD */
+        .panel {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 20px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            z-index: 100;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #aaa;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        .panel strong {
+            color: #00ff88;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        /* Pannello Nodo Locale (top-left) */
+        #info {
+            top: 20px;
+            left: 20px;
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        /* Pannello Analisi (bottom-right) */
+        #topology-info {
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+        }
+
+        /* Pannello Controlli (top-right) */
+        #controls {
+            top: 20px;
+            right: 20px;
+        }
+
+        /* Nuovo: Pannello Ispettore (left-bottom, nascosto di default) */
+        #inspector {
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none; /* Nascosto finché non si clicca un nodo */
+            border-color: #ffaa00;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
+        }
+
+        /* Selettore Canali */
+        #channel-selector {
+            position: absolute;
+            top: 150px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            z-index: 100;
+        }
+        #channel-selector select {
+            width: 180px;
+            padding: 8px;
+            background: #1a1a2e;
+            color: #00ff88;
+            border: 1px solid #00ff88;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+        }
+        #channel-selector label {
+            display: block;
+            margin-bottom: 8px;
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        /* Stats inline */
+        .stat-line {
+            margin: 4px 0;
+            color: #ccc;
+        }
+        .stat-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        /* Canvas */
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        /* Scrollbar per inspector */
+        #inspector::-webkit-scrollbar {
+            width: 8px;
+        }
+        #inspector::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+        #inspector::-webkit-scrollbar-thumb {
+            background: #ffaa00;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
+    <!-- Pannello Nodo Locale -->
     <div id="info" class="panel">
-        <div><strong>Synapse-NG Node</strong></div>
+        <div><strong>🧠 Synapse-NG Node</strong></div>
         <div id="node-id" style="margin: 8px 0;">ID: ...</div>
-        <div id="node-count">Nodi Attivi: 0</div>
+        <div class="stat-line">Nodi Attivi: <span id="node-count" class="stat-value">0</span></div>
+        <div class="stat-line">Connessioni Dirette: <span id="direct-connections" class="stat-value">0</span></div>
+        <div class="stat-line">Reputazione: <span id="reputation" class="stat-value">0</span></div>
     </div>
 
+    <!-- Selettore Canali -->
+    <div id="channel-selector">
+        <label for="channel-select">🔍 Canale Focus:</label>
+        <select id="channel-select">
+            <option value="global">🌐 Global (Tutti)</option>
+        </select>
+    </div>
+
+    <!-- Pannello Analisi Canale -->
     <div id="topology-info" class="panel">
-        <strong>Analisi di Rete</strong><br><br>
+        <strong id="analysis-title">📊 Analisi Rete</strong><br><br>
         <div id="topology-content">In attesa di dati...</div>
     </div>
 
+    <!-- Pannello Controlli 3D -->
     <div id="controls" class="panel">
-        <strong>Controlli 3D</strong><br><br>
+        <strong>🎮 Controlli 3D</strong><br><br>
         🖱️ Rotazione: Drag sinistro<br>
         🔍 Zoom: Scroll mouse<br>
-        ↔️ Pan: Drag destro
+        ↔️ Pan: Drag destro<br>
+        🖱️ Click: Ispeziona nodo
+    </div>
+
+    <!-- Pannello Ispettore (nascosto inizialmente) -->
+    <div id="inspector" class="panel">
+        <strong>🔎 Ispettore Nodo</strong>
+        <button onclick="closeInspector()" style="float:right; background:#ffaa00; border:none; padding:4px 8px; cursor:pointer; border-radius:3px; color:#000;">✕</button>
+        <br><br>
+        <div id="inspector-content">Clicca su un nodo per ispezionarlo</div>
     </div>
 
     <div id="canvas-container"></div>
@@ -51,11 +185,18 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        let scene, camera, renderer, controls;
+        // ===== STATO GLOBALE =====
+        let scene, camera, renderer, controls, raycaster, mouse;
         const nodeMeshes = {};
         const linkLines = [];
         const labelSprites = {};
+        const nodeActivityGlows = {};
 
+        let currentState = null;
+        let currentNetworkStats = null;
+        let selectedChannel = 'global';
+
+        // ===== INIZIALIZZAZIONE SCENA 3D =====
         function init() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0a0a0a);
@@ -75,32 +216,59 @@
             controls.minDistance = 100;
             controls.maxDistance = 1800;
 
+            // Raycaster per click detection
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Luci
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
             directionalLight.position.set(100, 200, 100);
             scene.add(directionalLight);
 
+            // Griglia
             const gridHelper = new THREE.GridHelper(1500, 30, 0x00ff88, 0x333333);
             gridHelper.position.y = -200;
             scene.add(gridHelper);
 
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
+            // Event listeners
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('click', onNodeClick);
 
             animate();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
-            Object.values(labelSprites).forEach(sprite => sprite.quaternion.copy(camera.quaternion));
+
+            // Billboarding labels (always face camera)
+            Object.values(labelSprites).forEach(sprite => {
+                sprite.quaternion.copy(camera.quaternion);
+            });
+
+            // Animate activity glows
+            Object.values(nodeActivityGlows).forEach(glow => {
+                if (glow.visible) {
+                    glow.scale.multiplyScalar(1.05); // Espansione
+                    glow.material.opacity *= 0.95; // Dissolvenza
+                    if (glow.material.opacity < 0.01) {
+                        glow.visible = false;
+                    }
+                }
+            });
+
             renderer.render(scene, camera);
         }
 
+        // ===== UTILITÀ UI =====
         function createTextSprite(text, color = '#ffffff', fontSize = 32) {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
@@ -115,28 +283,170 @@
             return sprite;
         }
 
-        function updateGraph(nodes, links) {
+        // ===== LOGICA CLICK SU NODO =====
+        function onNodeClick(event) {
+            if (!currentState) return;
+
+            // Calcola posizione mouse normalizzata
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(Object.values(nodeMeshes));
+
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                // Trova il node_id corrispondente
+                const nodeId = Object.keys(nodeMeshes).find(id => nodeMeshes[id] === clickedMesh);
+                if (nodeId) {
+                    showInspector(nodeId);
+                }
+            }
+        }
+
+        // ===== ISPETTORE NODO =====
+        function showInspector(nodeId) {
+            const inspector = document.getElementById('inspector');
+            const content = document.getElementById('inspector-content');
+
+            // Trova i dati del nodo
+            const nodeData = currentState.state.global.nodes[nodeId];
+            if (!nodeData) return;
+
+            // Trova le statistiche WebRTC per questo peer
+            const webrtcPeer = currentNetworkStats.webrtc_connections.peers[nodeId];
+
+            // Trova i canali sottoscritti (cercando nelle participants list)
+            const subscribedChannels = [];
+            for (const [channelId, channelData] of Object.entries(currentState.state)) {
+                if (channelId === 'global') continue;
+                if (channelData.participants && channelData.participants.includes(nodeId)) {
+                    subscribedChannels.push(channelId);
+                }
+            }
+
+            // Conta i task assegnati
+            let assignedTasks = [];
+            for (const [channelId, channelData] of Object.entries(currentState.state)) {
+                if (channelId === 'global') continue;
+                if (channelData.tasks) {
+                    for (const [taskId, task] of Object.entries(channelData.tasks)) {
+                        if (task.assignee === nodeId) {
+                            assignedTasks.push({ channel: channelId, task: task });
+                        }
+                    }
+                }
+            }
+
+            let html = `
+                <div style="margin: 10px 0;">
+                    <strong style="color: #ffaa00;">ID Completo:</strong><br>
+                    <span style="font-size: 10px; color: #ccc; word-break: break-all;">${nodeId}</span>
+                </div>
+                <div class="stat-line">Reputazione: <span class="stat-value">${nodeData.reputation || 0}</span></div>
+                <div class="stat-line">URL: <span style="color: #ccc;">${nodeData.url || 'N/A'}</span></div>
+                <hr style="border: 1px solid #444; margin: 10px 0;">
+            `;
+
+            // Stato Connessione
+            if (webrtcPeer) {
+                const isDirect = webrtcPeer.data_channel === 'open';
+                html += `
+                    <div style="margin: 8px 0;">
+                        <strong style="color: ${isDirect ? '#00ff88' : '#ffaa00'};">
+                            ${isDirect ? '✅ Connessione Diretta (WebRTC)' : '⚠️ Connessione in Corso'}
+                        </strong>
+                    </div>
+                    <div class="stat-line">Stato: <span class="stat-value">${webrtcPeer.state}</span></div>
+                    <div class="stat-line">ICE: <span class="stat-value">${webrtcPeer.ice_state}</span></div>
+                    ${webrtcPeer.latency_ms ? `<div class="stat-line">Latenza: <span class="stat-value">${webrtcPeer.latency_ms} ms</span></div>` : ''}
+                `;
+            } else {
+                html += `
+                    <div style="margin: 8px 0;">
+                        <strong style="color: #888;">🔍 Scoperto (Non Connesso)</strong>
+                    </div>
+                `;
+            }
+
+            html += `<hr style="border: 1px solid #444; margin: 10px 0;">`;
+
+            // Canali Sottoscritti
+            html += `
+                <div style="margin: 8px 0;">
+                    <strong>📡 Canali Sottoscritti:</strong><br>
+                    ${subscribedChannels.length > 0
+                        ? subscribedChannels.map(c => `<span style="color: #00ff88;">• ${c}</span>`).join('<br>')
+                        : '<span style="color: #888;">Nessun canale</span>'}
+                </div>
+            `;
+
+            // Task Assegnati
+            html += `
+                <div style="margin: 8px 0;">
+                    <strong>📋 Task Assegnati (${assignedTasks.length}):</strong><br>
+                    ${assignedTasks.length > 0
+                        ? assignedTasks.map(t => `
+                            <div style="margin: 4px 0; padding: 4px; background: rgba(0, 255, 136, 0.1); border-left: 2px solid #00ff88;">
+                                <strong style="color: #00ff88;">${t.channel}</strong><br>
+                                <span style="font-size: 10px;">${t.task.title}</span><br>
+                                <span style="font-size: 10px; color: #ccc;">Status: ${t.task.status}</span>
+                            </div>
+                        `).join('')
+                        : '<span style="color: #888;">Nessun task</span>'}
+                </div>
+            `;
+
+            content.innerHTML = html;
+            inspector.style.display = 'block';
+        }
+
+        window.closeInspector = function() {
+            document.getElementById('inspector').style.display = 'none';
+        }
+
+        // ===== AGGIORNAMENTO GRAFO 3D =====
+        function updateGraph(nodes, networkStats) {
             const allNodeIds = nodes.map(n => n.id);
 
+            // Rimuovi nodi scomparsi
             Object.keys(nodeMeshes).forEach(id => {
                 if (!allNodeIds.includes(id)) {
                     scene.remove(nodeMeshes[id]);
+                    if (nodeActivityGlows[id]) scene.remove(nodeActivityGlows[id]);
                     delete nodeMeshes[id];
                     delete labelSprites[id];
+                    delete nodeActivityGlows[id];
                 }
             });
 
+            // Cancella link esistenti
             linkLines.forEach(line => scene.remove(line));
             linkLines.length = 0;
 
             const nodeMap = {};
+            const isChannelFocused = selectedChannel !== 'global';
+            const participantsInChannel = isChannelFocused
+                ? (currentState.state[selectedChannel]?.participants || [])
+                : allNodeIds;
+
             nodes.forEach((node, i) => {
                 let sphere = nodeMeshes[node.id];
+                let isNewNode = false;
+
                 if (!sphere) {
+                    isNewNode = true;
                     const geometry = new THREE.SphereGeometry(15, 32, 32);
-                    const material = new THREE.MeshPhongMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.2, shininess: 100 });
+                    const material = new THREE.MeshPhongMaterial({
+                        color: 0x00ff88,
+                        emissive: 0x00ff88,
+                        emissiveIntensity: 0.2,
+                        shininess: 100
+                    });
                     sphere = new THREE.Mesh(geometry, material);
 
+                    // Posizionamento circolare
                     const angle = (i / nodes.length) * Math.PI * 2;
                     const radius = 350;
                     sphere.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
@@ -148,51 +458,272 @@
 
                     scene.add(sphere);
                     nodeMeshes[node.id] = sphere;
+
+                    // Activity glow (nascosto di default)
+                    const glowGeometry = new THREE.RingGeometry(20, 30, 32);
+                    const glowMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x00ff88,
+                        transparent: true,
+                        opacity: 0.8,
+                        side: THREE.DoubleSide
+                    });
+                    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                    glow.visible = false;
+                    glow.position.copy(sphere.position);
+                    glow.rotation.x = Math.PI / 2;
+                    scene.add(glow);
+                    nodeActivityGlows[node.id] = glow;
                 }
 
-                // Colora il nodo locale di un colore diverso per identificarlo
+                // Applica logica di focus canale
+                const isParticipant = participantsInChannel.includes(node.id);
+
+                // Colore e visibilità
                 if (node.id === window.LOCAL_NODE_ID) {
-                    sphere.material.color.setHex(0xffffff); // Bianco
+                    // Nodo locale sempre bianco
+                    sphere.material.color.setHex(0xffffff);
                     sphere.material.emissive.setHex(0xffffff);
+                    sphere.material.opacity = 1.0;
+                } else if (isChannelFocused && !isParticipant) {
+                    // Nodi non partecipanti: grigi e semi-trasparenti
+                    sphere.material.color.setHex(0x444444);
+                    sphere.material.emissive.setHex(0x222222);
+                    sphere.material.opacity = 0.3;
+                    sphere.material.transparent = true;
                 } else {
-                    sphere.material.color.setHex(0x00ff88); // Verde
+                    // Nodi partecipanti: verde normale
+                    sphere.material.color.setHex(0x00ff88);
                     sphere.material.emissive.setHex(0x00ff88);
+                    sphere.material.opacity = 1.0;
+                    sphere.material.transparent = false;
                 }
 
-                // Mappa la reputazione all'altezza (asse Y)
+                // Dimensione basata su reputazione
+                const baseScale = 1.0;
+                const repScale = Math.min(node.reputation / 100, 2.0); // Max 2x size
+                const targetScale = baseScale + repScale;
+                sphere.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+
+                // Altezza basata su reputazione (manteniamo questa logica)
                 const targetY = -150 + Math.min(node.reputation * 5, 400);
                 sphere.position.y += (targetY - sphere.position.y) * 0.05;
+
+                // Aggiorna anche la posizione del glow
+                if (nodeActivityGlows[node.id]) {
+                    nodeActivityGlows[node.id].position.copy(sphere.position);
+                }
 
                 nodeMap[node.id] = sphere.position;
             });
 
-            links.forEach(link => {
-                if (nodeMap[link.source] && nodeMap[link.target]) {
-                    const geometry = new THREE.BufferGeometry().setFromPoints([nodeMap[link.source], nodeMap[link.target]]);
-                    const material = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.3 });
+            // ===== CREA LINK =====
+            const webrtcConnections = networkStats.webrtc_connections.peers;
+
+            // Link WebRTC diretti (priorità massima)
+            Object.entries(webrtcConnections).forEach(([peerId, peerData]) => {
+                if (nodeMap[NODE_ID] && nodeMap[peerId]) {
+                    const isOpen = peerData.data_channel === 'open';
+                    const isInMesh = isChannelFocused
+                        ? (participantsInChannel.includes(NODE_ID) && participantsInChannel.includes(peerId))
+                        : true;
+
+                    // Link solido per WebRTC aperto
+                    const geometry = new THREE.BufferGeometry().setFromPoints([
+                        nodeMap[window.LOCAL_NODE_ID],
+                        nodeMap[peerId]
+                    ]);
+
+                    let material;
+                    if (isOpen && isInMesh) {
+                        // Link WebRTC attivo nella mesh: brillante e spesso
+                        material = new THREE.LineBasicMaterial({
+                            color: 0x00ffff,
+                            linewidth: 3,
+                            transparent: false
+                        });
+                    } else if (isOpen) {
+                        // Link WebRTC ma fuori dalla mesh selezionata
+                        material = new THREE.LineBasicMaterial({
+                            color: 0x00ff88,
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                    } else {
+                        // Connessione in corso
+                        material = new THREE.LineDashedMaterial({
+                            color: 0xffaa00,
+                            dashSize: 10,
+                            gapSize: 5,
+                            transparent: true,
+                            opacity: 0.4
+                        });
+                    }
+
                     const line = new THREE.Line(geometry, material);
+                    if (material.type === 'LineDashedMaterial') {
+                        line.computeLineDistances();
+                    }
                     scene.add(line);
                     linkLines.push(line);
                 }
             });
+
+            // Link "scoperto" (tratteggiato scuro) tra nodi non connessi
+            nodes.forEach(node => {
+                if (node.id !== window.LOCAL_NODE_ID && !webrtcConnections[node.id]) {
+                    // Questo nodo è conosciuto ma non connesso via WebRTC
+                    if (nodeMap[window.LOCAL_NODE_ID] && nodeMap[node.id]) {
+                        const geometry = new THREE.BufferGeometry().setFromPoints([
+                            nodeMap[window.LOCAL_NODE_ID],
+                            nodeMap[node.id]
+                        ]);
+                        const material = new THREE.LineDashedMaterial({
+                            color: 0x333333,
+                            dashSize: 5,
+                            gapSize: 10,
+                            transparent: true,
+                            opacity: 0.2
+                        });
+                        const line = new THREE.Line(geometry, material);
+                        line.computeLineDistances();
+                        scene.add(line);
+                        linkLines.push(line);
+                    }
+                }
+            });
         }
 
-        function analyzeTopology(networkState) {
-            const globalChannel = networkState.global || { nodes: {} };
-            const nodeCount = Object.keys(globalChannel.nodes).length;
-            document.getElementById("node-count").textContent = `Nodi Attivi: ${nodeCount}`;
+        // ===== AGGIORNAMENTO HUD =====
+        function updateHUD(uiData) {
+            const state = uiData.state;
+            const stats = uiData.network_stats;
 
-            let analysisHtml = ``;
-            for (const channelId in networkState) {
-                if (channelId === 'global') continue;
-                const channel = networkState[channelId];
-                const participants = channel.participants?.length || 0;
-                const tasks = channel.tasks ? Object.keys(channel.tasks).length : 0;
-                analysisHtml += `• <strong>${channelId}:</strong> ${participants} part., ${tasks} task<br>`;
+            // Pannello Nodo Locale
+            const localNode = state.global.nodes[window.LOCAL_NODE_ID];
+            if (localNode) {
+                document.getElementById('reputation').textContent = localNode.reputation || 0;
             }
-            document.getElementById('topology-content').innerHTML = analysisHtml || "Nessun canale tematico attivo.";
+
+            const nodeCount = Object.keys(state.global.nodes).length;
+            document.getElementById('node-count').textContent = nodeCount;
+            document.getElementById('direct-connections').textContent = stats.webrtc_connections.total_established;
+
+            // Pannello Analisi Canale
+            const analysisTitle = document.getElementById('analysis-title');
+            const topologyContent = document.getElementById('topology-content');
+
+            if (selectedChannel === 'global') {
+                analysisTitle.textContent = '📊 Analisi Rete Globale';
+                let html = `
+                    <div class="stat-line">Nodi Totali: <span class="stat-value">${stats.network_topology.total_nodes}</span></div>
+                    <div class="stat-line">Connessi Diretti: <span class="stat-value">${stats.network_topology.connected_direct}</span></div>
+                    <div class="stat-line">Solo Scoperti: <span class="stat-value">${stats.network_topology.discovered_only}</span></div>
+                    <hr style="border: 1px solid #444; margin: 8px 0;">
+                    <div class="stat-line">Topic PubSub: <span class="stat-value">${stats.synapsesub_stats.total_subscriptions}</span></div>
+                    <div class="stat-line">Messaggi Visti: <span class="stat-value">${stats.synapsesub_stats.total_messages_seen}</span></div>
+                `;
+
+                // Lista canali
+                html += `<hr style="border: 1px solid #444; margin: 8px 0;"><strong>Canali Attivi:</strong><br>`;
+                for (const channelId in state) {
+                    if (channelId === 'global') continue;
+                    const channel = state[channelId];
+                    const participants = channel.participants?.length || 0;
+                    const tasks = channel.tasks ? Object.keys(channel.tasks).length : 0;
+                    html += `• <span style="color: #00ff88;">${channelId}:</span> ${participants} part., ${tasks} task<br>`;
+                }
+                topologyContent.innerHTML = html;
+            } else {
+                // Modalità focus su un canale
+                analysisTitle.textContent = `🔍 Canale: ${selectedChannel}`;
+                const channelData = state[selectedChannel];
+                if (channelData) {
+                    const participants = channelData.participants?.length || 0;
+                    const tasks = channelData.tasks ? Object.keys(channelData.tasks).length : 0;
+                    const proposals = channelData.proposals ? Object.keys(channelData.proposals).length : 0;
+
+                    // Topic mesh info
+                    const topicName = `channel:${selectedChannel}:state`;
+                    const topicInfo = stats.synapsesub_stats.topics[topicName];
+
+                    let html = `
+                        <div class="stat-line">Partecipanti: <span class="stat-value">${participants}</span></div>
+                        <div class="stat-line">Task Attivi: <span class="stat-value">${tasks}</span></div>
+                        <div class="stat-line">Proposte: <span class="stat-value">${proposals}</span></div>
+                        <hr style="border: 1px solid #444; margin: 8px 0;">
+                    `;
+
+                    if (topicInfo) {
+                        html += `
+                            <strong>Salute Mesh:</strong><br>
+                            <div class="stat-line">Dimensione Mesh: <span class="stat-value">${topicInfo.mesh_size}</span></div>
+                            <div class="stat-line">Messaggi Visti: <span class="stat-value">${topicInfo.messages_seen}</span></div>
+                        `;
+                    }
+
+                    // Calcola latenza media con i peer del canale
+                    if (participants > 1) {
+                        let totalLatency = 0;
+                        let connectedCount = 0;
+                        channelData.participants.forEach(peerId => {
+                            if (peerId !== window.LOCAL_NODE_ID) {
+                                const peerWebRTC = stats.webrtc_connections.peers[peerId];
+                                if (peerWebRTC?.latency_ms) {
+                                    totalLatency += peerWebRTC.latency_ms;
+                                    connectedCount++;
+                                }
+                            }
+                        });
+                        if (connectedCount > 0) {
+                            const avgLatency = Math.round(totalLatency / connectedCount);
+                            html += `<div class="stat-line">Latenza Media: <span class="stat-value">${avgLatency} ms</span></div>`;
+                        }
+                    }
+
+                    topologyContent.innerHTML = html;
+                } else {
+                    topologyContent.innerHTML = '<span style="color: #888;">Canale non trovato</span>';
+                }
+            }
         }
 
+        // ===== GESTORE SELETTORE CANALI =====
+        function updateChannelSelector(state) {
+            const selector = document.getElementById('channel-select');
+            const currentValue = selector.value;
+
+            // Ricrea le opzioni
+            selector.innerHTML = '<option value="global">🌐 Global (Tutti)</option>';
+            for (const channelId in state) {
+                if (channelId === 'global') continue;
+                const option = document.createElement('option');
+                option.value = channelId;
+                option.textContent = `📡 ${channelId}`;
+                selector.appendChild(option);
+            }
+
+            // Ripristina selezione se esiste ancora
+            if (Array.from(selector.options).some(opt => opt.value === currentValue)) {
+                selector.value = currentValue;
+            } else {
+                selector.value = 'global';
+                selectedChannel = 'global';
+            }
+        }
+
+        document.getElementById('channel-select').addEventListener('change', (e) => {
+            selectedChannel = e.target.value;
+            // Chiudi inspector quando si cambia canale
+            closeInspector();
+            // Riaggiorna grafo
+            if (currentState && currentNetworkStats) {
+                const nodes = Object.values(currentState.state.global.nodes);
+                updateGraph(nodes, currentNetworkStats);
+                updateHUD(currentState);
+            }
+        });
+
+        // ===== INIT =====
         init();
 
         // Imposta l'ID del nodo locale nel pannello info
@@ -200,22 +731,35 @@
             document.getElementById("node-id").textContent = `ID: ${window.LOCAL_NODE_ID.substring(0, 8)}`;
         }
 
+        // ===== WEBSOCKET =====
         const ws = new WebSocket(`ws://${window.location.host}/ws`);
         ws.onmessage = (event) => {
-            const networkState = JSON.parse(event.data);
+            const uiData = JSON.parse(event.data);
 
-            const nodes = networkState.global ? Object.values(networkState.global.nodes) : [];
-            if (nodes.length === 0) return;
-
-            const links = [];
-            for (let i = 0; i < nodes.length; i++) {
-                for (let j = i + 1; j < nodes.length; j++) {
-                    links.push({ source: nodes[i].id, target: nodes[j].id });
-                }
+            // Verifica che sia il nuovo formato
+            if (uiData.type !== 'full_update' || !uiData.state || !uiData.network_stats) {
+                console.warn('Formato messaggio WebSocket non riconosciuto', uiData);
+                return;
             }
 
-            updateGraph(nodes, links);
-            analyzeTopology(networkState);
+            currentState = uiData;
+            currentNetworkStats = uiData.network_stats;
+
+            const nodes = Object.values(uiData.state.global.nodes);
+            if (nodes.length === 0) return;
+
+            updateChannelSelector(uiData.state);
+            updateGraph(nodes, uiData.network_stats);
+            updateHUD(uiData);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+            console.warn('WebSocket chiuso, tentativo di riconnessione...');
+            setTimeout(() => location.reload(), 3000);
         };
     </script>
 </body>
