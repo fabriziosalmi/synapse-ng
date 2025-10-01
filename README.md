@@ -72,10 +72,11 @@ Synapse-NG implementa un'architettura di comunicazione a tre livelli:
 - ✅ **Nessun SPOF**: Nessun single point of failure
 
 ### **Task Management**
-- ✅ **Canali tematici**: Partizionamento logico dei task
+- ✅ **Canali tematici**: Partizionamento logico dei task (richiede sottoscrizione)
 - ✅ **Lifecycle completo**: open → claimed → in_progress → completed
-- ✅ **Propagazione CRDT**: Convergenza garantita
+- ✅ **Propagazione CRDT**: Convergenza garantita via PubSub topic-based
 - ✅ **Validazione transizioni**: Solo agli endpoint API
+- ⚠️ **Sottoscrizione richiesta**: I nodi devono essere sottoscritti ai canali per ricevere aggiornamenti
 
 ### **Governance**
 - ✅ **Sistema di proposte**: Ogni nodo può proporre cambiamenti
@@ -130,6 +131,14 @@ curl http://localhost:8001/webrtc/connections | jq
 | `BOOTSTRAP_NODES` | Lista di peer bootstrap (CSV) | ⚠️ Solo per modalità P2P | - |
 | `SUBSCRIBED_CHANNELS` | Canali da sottoscrivere (CSV) | No | "" |
 | `NODE_PORT` | Porta del nodo | No | 8000 |
+
+**⚠️ IMPORTANTE: Sottoscrizioni Canali**
+
+Per ricevere task e messaggi su un canale, **tutti i nodi devono essere sottoscritti** al topic corrispondente tramite `SUBSCRIBED_CHANNELS`. Se un nodo non è sottoscritto a un canale, **non riceverà** gli aggiornamenti di quel canale tramite PubSub.
+
+Esempio:
+- `SUBSCRIBED_CHANNELS=sviluppo_ui` → riceve solo task del canale `sviluppo_ui`
+- `SUBSCRIBED_CHANNELS=sviluppo_ui,marketing` → riceve task di entrambi i canali
 
 ### Modalità Operative
 
@@ -228,11 +237,16 @@ Testa convergenza, WebRTC, PubSub, task lifecycle, reputazione.
 
 **Scenari testati:**
 1. ✅ Avvio a freddo (3 nodi)
-2. ✅ Connessioni WebRTC
-3. ✅ Sottoscrizioni PubSub
-4. ✅ Ingresso nuovo nodo
-5. ✅ Task lifecycle completo
-6. ✅ Sistema reputazione
+2. ✅ Connessioni WebRTC (verifica peer connections e data channels)
+3. ✅ Sottoscrizioni PubSub (verifica topic subscriptions)
+4. ✅ Ingresso nuovo nodo (scalabilità dinamica)
+5. ✅ Task lifecycle completo (create → claim → progress → complete)
+6. ✅ Sistema reputazione (+10 per task completati)
+
+**⚠️ Note sui Test:**
+- Tutti i nodi devono essere sottoscritti agli stessi canali per i test cross-node
+- I timeout sono calibrati per WebRTC + PubSub (più lenti del gossip HTTP diretto)
+- La test suite viene eseguita automaticamente nel pre-push git hook
 
 ### Test WebRTC + SynapseSub
 
@@ -299,15 +313,23 @@ synapse-ng/
      │                                │
      │ 4. ANNOUNCE Topic              │
      │───SynapseSub──────────────────>│
+     │   (sottoscrizione al canale)   │
      │                                │
      │ 5. MESSAGE (Gossip)            │
      │<══SynapseSub══════════════════>│
      │    Topic: channel:dev:state    │
+     │    (solo se entrambi           │
+     │     sottoscritti al topic!)    │
      │                                │
      │ 6. Forward ad altri peer       │
      │         nella mesh             │
      └────────────────────────────────┘
 ```
+
+**Note sul Flusso:**
+- Passo 4: I nodi annunciano i topic a cui sono interessati (`SUBSCRIBED_CHANNELS`)
+- Passo 5: I messaggi vengono inoltrati **solo ai peer sottoscritti** al topic
+- Se un nodo non è sottoscritto, non riceverà messaggi su quel topic
 
 ### CRDT e Convergenza
 
