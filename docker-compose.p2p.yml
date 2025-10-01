@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # Bootstrap Node (primo nodo della rete)
+  bootstrap:
+    build: .
+    container_name: synapse-ng-bootstrap
+    environment:
+      - OWN_URL=http://bootstrap:8000
+      - RENDEZVOUS_URL=  # Vuoto per modalità P2P
+      - BOOTSTRAP_NODES=  # Primo nodo, nessun bootstrap
+      - SUBSCRIBED_CHANNELS=sviluppo_ui
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data/bootstrap:/app/data
+    networks:
+      - synapse-p2p
+
+  # Node 2 (bootstrap da node 1)
+  node-2:
+    build: .
+    container_name: synapse-ng-node-2
+    environment:
+      - OWN_URL=http://node-2:8000
+      - RENDEZVOUS_URL=  # Vuoto per modalità P2P
+      - BOOTSTRAP_NODES=http://bootstrap:8000
+      - SUBSCRIBED_CHANNELS=sviluppo_ui
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./data/node-2:/app/data
+    networks:
+      - synapse-p2p
+    depends_on:
+      - bootstrap
+
+  # Node 3 (bootstrap da node 1 e node 2)
+  node-3:
+    build: .
+    container_name: synapse-ng-node-3
+    environment:
+      - OWN_URL=http://node-3:8000
+      - RENDEZVOUS_URL=  # Vuoto per modalità P2P
+      - BOOTSTRAP_NODES=http://bootstrap:8000,http://node-2:8000
+      - SUBSCRIBED_CHANNELS=sviluppo_ui
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./data/node-3:/app/data
+    networks:
+      - synapse-p2p
+    depends_on:
+      - bootstrap
+      - node-2
+
+  # Node 4 (bootstrap da tutti)
+  node-4:
+    build: .
+    container_name: synapse-ng-node-4
+    environment:
+      - OWN_URL=http://node-4:8000
+      - RENDEZVOUS_URL=  # Vuoto per modalità P2P
+      - BOOTSTRAP_NODES=http://bootstrap:8000,http://node-2:8000,http://node-3:8000
+      - SUBSCRIBED_CHANNELS=sviluppo_ui
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./data/node-4:/app/data
+    networks:
+      - synapse-p2p
+    depends_on:
+      - bootstrap
+      - node-2
+      - node-3
+
+networks:
+  synapse-p2p:
+    driver: bridge

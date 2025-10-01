@@ -3,3 +3,5 @@ uvicorn[standard]
 httpx
 cryptography
 Jinja2
+aiortc
+aiohttp

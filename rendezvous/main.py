@@ -4,7 +4,7 @@ import time
 import random
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Set
+from typing import List, Set, Dict, Optional
 
 app = FastAPI()
 
@@ -14,8 +14,18 @@ app = FastAPI()
 active_peers = {}
 PEER_TIMEOUT_SECONDS = 60  # Un peer viene considerato inattivo dopo 60 secondi
 
+# Signaling: memorizza offerte/risposte SDP e candidati ICE
+# { "caller_id": { "callee_id": { "offer": {...}, "answer": {...}, "ice_candidates": [...] } } }
+signaling_sessions: Dict[str, Dict[str, Dict]] = {}
+
 class PeerRegistration(BaseModel):
     url: str
+
+class SignalingMessage(BaseModel):
+    from_peer: str
+    to_peer: str
+    type: str  # "offer", "answer", "ice-candidate"
+    payload: dict
 
 # --- Endpoint ---
 
@@ -85,4 +95,79 @@ async def on_startup():
     """
     print("🚀 Rendezvous Server avviato. In attesa di peer...")
     asyncio.create_task(cleanup_inactive_peers())
+
+# --- WebRTC Signaling Endpoints ---
+
+@app.post("/signal/send", status_code=200)
+async def send_signaling_message(msg: SignalingMessage):
+    """
+    Inoltra un messaggio di signaling (offer/answer/ICE) da un peer all'altro.
+    Il messaggio viene memorizzato e può essere recuperato dal destinatario.
+    """
+    if msg.from_peer not in signaling_sessions:
+        signaling_sessions[msg.from_peer] = {}
+
+    if msg.to_peer not in signaling_sessions[msg.from_peer]:
+        signaling_sessions[msg.from_peer][msg.to_peer] = {
+            "offer": None,
+            "answer": None,
+            "ice_candidates": []
+        }
+
+    session = signaling_sessions[msg.from_peer][msg.to_peer]
+
+    if msg.type == "offer":
+        session["offer"] = msg.payload
+        print(f"📡 Offer ricevuta da {msg.from_peer[:16]}... per {msg.to_peer[:16]}...")
+    elif msg.type == "answer":
+        session["answer"] = msg.payload
+        print(f"📡 Answer ricevuta da {msg.from_peer[:16]}... per {msg.to_peer[:16]}...")
+    elif msg.type == "ice-candidate":
+        session["ice_candidates"].append(msg.payload)
+        print(f"🧊 ICE candidate da {msg.from_peer[:16]}... per {msg.to_peer[:16]}...")
+
+    return {"status": "delivered"}
+
+@app.get("/signal/poll/{peer_id}", response_model=List[dict])
+async def poll_signaling_messages(peer_id: str):
+    """
+    Recupera tutti i messaggi di signaling destinati a questo peer.
+    Restituisce una lista di messaggi da processare.
+    """
+    messages = []
+
+    # Cerca messaggi in cui peer_id è il destinatario
+    for from_peer, sessions in signaling_sessions.items():
+        if peer_id in sessions:
+            session = sessions[peer_id]
+
+            if session.get("offer"):
+                messages.append({
+                    "from_peer": from_peer,
+                    "type": "offer",
+                    "payload": session["offer"]
+                })
+                session["offer"] = None  # Consumato
+
+            if session.get("answer"):
+                messages.append({
+                    "from_peer": from_peer,
+                    "type": "answer",
+                    "payload": session["answer"]
+                })
+                session["answer"] = None  # Consumato
+
+            for candidate in session.get("ice_candidates", []):
+                messages.append({
+                    "from_peer": from_peer,
+                    "type": "ice-candidate",
+                    "payload": candidate
+                })
+
+            session["ice_candidates"] = []  # Consumati
+
+    if messages:
+        print(f"📬 {len(messages)} messaggi di signaling per {peer_id[:16]}...")
+
+    return messages
 
