@@ -1,0 +1,31 @@
+version: '3.8'
+
+# Bridge node che connette LAN e WAN networks
+
+services:
+  bridge-node:
+    build: .
+    ports:
+      - "9000:8000"
+    environment:
+      - NODE_PORT=8000
+      - NODE_TYPE=bridge
+      - PEERS=http://synapse-ng-node-1-1:8000,http://synapse-wan-1:8000
+      - ENABLE_MDNS=false
+      - ENABLE_WEBRTC=false
+      - KEY_PATH=/app/data/node.key
+    volumes:
+      - bridge-data:/app/data
+    container_name: synapse-bridge
+    networks:
+      - synapse-ng_synapse-network
+      - synapse-ng_wan-network
+
+volumes:
+  bridge-data:
+
+networks:
+  synapse-ng_synapse-network:
+    external: true
+  synapse-ng_wan-network:
+    external: true

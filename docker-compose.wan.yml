@@ -1,0 +1,66 @@
+version: '3.8'
+
+# Simulazione WAN: nodi su porte diverse che simulano macchine remote
+# Su Linux vero userebbero host networking, ma su macOS/Docker Desktop usiamo bridge
+
+services:
+  wan-node-1:
+    build: .
+    ports:
+      - "7001:8000"
+    environment:
+      - NODE_PORT=8000
+      - NODE_TYPE=wan
+      - PEERS=
+      - ENABLE_MDNS=true
+      - KEY_PATH=/app/data/node.key
+    volumes:
+      - wan1-data:/app/data
+    container_name: synapse-wan-1
+    networks:
+      - wan-network
+
+  wan-node-2:
+    build: .
+    ports:
+      - "7002:8000"
+    environment:
+      - NODE_PORT=8000
+      - NODE_TYPE=wan
+      - PEERS=http://wan-node-1:8000
+      - ENABLE_MDNS=true
+      - KEY_PATH=/app/data/node.key
+    volumes:
+      - wan2-data:/app/data
+    container_name: synapse-wan-2
+    depends_on:
+      - wan-node-1
+    networks:
+      - wan-network
+
+  wan-node-3:
+    build: .
+    ports:
+      - "7003:8000"
+    environment:
+      - NODE_PORT=8000
+      - NODE_TYPE=wan
+      - PEERS=http://wan-node-1:8000
+      - ENABLE_MDNS=true
+      - KEY_PATH=/app/data/node.key
+    volumes:
+      - wan3-data:/app/data
+    container_name: synapse-wan-3
+    depends_on:
+      - wan-node-1
+    networks:
+      - wan-network
+
+volumes:
+  wan1-data:
+  wan2-data:
+  wan3-data:
+
+networks:
+  wan-network:
+    driver: bridge

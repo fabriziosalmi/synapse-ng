@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  rendezvous:
+    build:
+      context: ./rendezvous
+    ports:
+      - "8080:8080"
+
+  node-1:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - NODE_PORT=8000
+      - RENDEZVOUS_URL=http://rendezvous:8080
+      - OWN_URL=http://node-1:8000
+      - SUBSCRIBED_CHANNELS=sviluppo_ui
+    volumes:
+      - ./data/node-1:/app/data
+    depends_on:
+      - rendezvous
+
+  node-2:
+    build: .
+    ports:
+      - "8002:8000"
+    environment:
+      - NODE_PORT=8000
+      - RENDEZVOUS_URL=http://rendezvous:8080
+      - OWN_URL=http://node-2:8000
+      - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
+    volumes:
+      - ./data/node-2:/app/data
+    depends_on:
+      - rendezvous
+
+  node-3:
+    build: .
+    ports:
+      - "8003:8000"
+    environment:
+      - NODE_PORT=8000
+      - RENDEZVOUS_URL=http://rendezvous:8080
+      - OWN_URL=http://node-3:8000
+      - SUBSCRIBED_CHANNELS=marketing
+    volumes:
+      - ./data/node-3:/app/data
+    depends_on:
+      - rendezvous
+
+  node-4:
+    build: .
+    ports:
+      - "8004:8000"
+    environment:
+      - NODE_PORT=8000
+      - RENDEZVOUS_URL=http://rendezvous:8080
+      - OWN_URL=http://node-4:8000
+      - SUBSCRIBED_CHANNELS=sviluppo_ui
+    volumes:
+      - ./data/node-4:/app/data
+    depends_on:
+      - rendezvous
+
+volumes:
+  data-node-1:
+  data-node-2:
+  data-node-3:
+  data-node-4:
