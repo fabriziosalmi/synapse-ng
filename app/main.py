@@ -861,7 +861,7 @@ def calculate_balances(full_state: dict) -> Dict[str, int]:
     Calcola il balance SP (Synapse Points) di ogni nodo.
 
     Il balance è calcolato localmente da ogni nodo tracciando tutte le transazioni implicite:
-    - Ogni nodo parte con un balance iniziale (es. 1000 SP)
+    - Ogni nodo parte con un balance iniziale (default 1000 SP, configurabile via INITIAL_BALANCE)
     - Quando un task con reward viene creato, il creator perde reward SP (congelati)
     - Quando un task viene completato, l'assignee guadagna reward SP
     - Il calcolo è deterministico: tutti i nodi arrivano allo stesso risultato
@@ -869,7 +869,8 @@ def calculate_balances(full_state: dict) -> Dict[str, int]:
     Returns:
         Dict[node_id, balance_sp]
     """
-    INITIAL_BALANCE = 1000  # Balance iniziale per ogni nuovo nodo
+    # Leggi INITIAL_BALANCE da variabile d'ambiente (default 1000)
+    INITIAL_BALANCE = int(os.getenv("INITIAL_BALANCE", "1000"))
 
     balances = {node_id: INITIAL_BALANCE for node_id in full_state.get("global", {}).get("nodes", {})}
 

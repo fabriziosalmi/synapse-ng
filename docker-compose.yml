@@ -14,6 +14,7 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-1:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui
+      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
     volumes:
       - ./data/node-1:/app/data
     depends_on:
@@ -28,6 +29,7 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-2:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
+      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
     volumes:
       - ./data/node-2:/app/data
     depends_on:
@@ -42,6 +44,7 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-3:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
+      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
     volumes:
       - ./data/node-3:/app/data
     depends_on:
@@ -56,6 +59,7 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-4:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui
+      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
     volumes:
       - ./data/node-4:/app/data
     depends_on:

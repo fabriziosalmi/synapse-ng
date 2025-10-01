@@ -149,8 +149,19 @@
         <div class="stat-line">💰 Balance SP: <span id="balance" class="stat-value">0</span></div>
     </div>
 
+    <!-- Pannello Economia -->
+    <div id="economic-dashboard" class="panel" style="top: 230px; left: 20px; width: 230px;">
+        <strong>💹 Economia Rete</strong><br><br>
+        <div class="stat-line">SP in Circolo: <span id="total-sp" class="stat-value">0</span></div>
+        <div class="stat-line">SP Congelati: <span id="frozen-sp" class="stat-value">0</span></div>
+        <div class="stat-line">Transazioni (24h): <span id="tx-velocity" class="stat-value">0</span></div>
+        <hr style="border: 1px solid #444; margin: 8px 0;">
+        <strong>🏆 Top Nodi (Rep)</strong>
+        <div id="top-nodes-rep" style="font-size: 10px; margin-top: 5px;"></div>
+    </div>
+
     <!-- Selettore Canali -->
-    <div id="channel-selector">
+    <div id="channel-selector" style="top: 450px;">
         <label for="channel-select">🔍 Canale Focus:</label>
         <select id="channel-select">
             <option value="global">🌐 Global (Tutti)</option>
@@ -170,6 +181,11 @@
         🔍 Zoom: Scroll mouse<br>
         ↔️ Pan: Drag destro<br>
         🖱️ Click: Ispeziona nodo
+        <hr style="border: 1px solid #444; margin: 10px 0;">
+        <strong>📝 Crea Task</strong><br>
+        <input type="text" id="task-title" placeholder="Titolo del task..." style="width: 100%; background: #111; color: #fff; border: 1px solid #444; padding: 5px; margin-top: 5px;">
+        <input type="number" id="task-reward" placeholder="Reward (SP)" min="0" style="width: 100%; background: #111; color: #fff; border: 1px solid #444; padding: 5px; margin-top: 5px;">
+        <button id="create-task-btn" style="width: 100%; background: #00ff88; color: #000; border: none; padding: 8px; margin-top: 5px; cursor: pointer;">Crea</button>
     </div>
 
     <!-- Pannello Ispettore (nascosto inizialmente) -->
@@ -194,8 +210,10 @@
         const nodeActivityGlows = {};
 
         let currentState = null;
+        let previousState = null;
         let currentNetworkStats = null;
         let selectedChannel = 'global';
+        const activeFlows = []; // Per animazioni SP
 
         // ===== INIZIALIZZAZIONE SCENA 3D =====
         function init() {
@@ -255,16 +273,45 @@
                 sprite.quaternion.copy(camera.quaternion);
             });
 
-            // Animate activity glows
+            // Animate activity glows (pulse effect for hot proposals)
+            const t = (Date.now() % 1000) / 1000; // 1 second loop
+            const pulseScale = 1 + 0.5 * Math.sin(t * Math.PI * 2);
+
             Object.values(nodeActivityGlows).forEach(glow => {
-                if (glow.visible) {
-                    glow.scale.multiplyScalar(1.05); // Espansione
-                    glow.material.opacity *= 0.95; // Dissolvenza
+                if (glow.visible && glow.isHot) {
+                    glow.scale.set(pulseScale, pulseScale, pulseScale);
+                    glow.material.opacity = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
+                } else if (glow.visible && !glow.isHot) { // One-shot animation for other activities
+                    glow.scale.multiplyScalar(1.05);
+                    glow.material.opacity *= 0.95;
                     if (glow.material.opacity < 0.01) {
                         glow.visible = false;
                     }
                 }
             });
+
+            // Animate SP flows
+            const now = Date.now();
+            for (let i = activeFlows.length - 1; i >= 0; i--) {
+                const flow = activeFlows[i];
+                const elapsedTime = now - flow.startTime;
+                const progress = elapsedTime / flow.duration;
+
+                if (progress >= 1) {
+                    scene.remove(flow.points);
+                    activeFlows.splice(i, 1);
+                    continue;
+                }
+
+                const posAttribute = flow.points.geometry.getAttribute('position');
+                for (let j = 0; j < posAttribute.count; j++) {
+                    const particleProgress = Math.min(progress * (1 + Math.random() * 0.2), 1);
+                    const currentPos = new THREE.Vector3().lerpVectors(flow.startPos, flow.endPos, particleProgress);
+                    posAttribute.setXYZ(j, currentPos.x, currentPos.y, currentPos.z);
+                }
+                posAttribute.needsUpdate = true;
+                flow.points.material.opacity = 1.0 - progress;
+            }
 
             renderer.render(scene, camera);
         }
@@ -556,6 +603,33 @@
                     nodeActivityGlows[node.id].position.copy(sphere.position);
                 }
 
+                // Check for "hot" proposals by this node
+                let isHotProposer = false;
+                if (currentState) { // Make sure state is available
+                    for (const channelId in currentState.state) {
+                        if (channelId === 'global') continue;
+                        for (const prop of Object.values(currentState.state[channelId].proposals || {})) {
+                            if (prop.proposer === node.id && prop.status === 'open') {
+                                const voteCount = Object.keys(prop.votes).length;
+                                if (voteCount > 3) { // Definition of "hot"
+                                    isHotProposer = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (isHotProposer) break;
+                    }
+                }
+
+                const glow = nodeActivityGlows[node.id];
+                if (glow) {
+                    glow.isHot = isHotProposer;
+                    if (isHotProposer) {
+                        glow.visible = true;
+                        glow.material.color.setHex(0xffaa00); // Orange glow for proposals
+                    }
+                }
+
                 nodeMap[node.id] = sphere.position;
             });
 
@@ -702,6 +776,42 @@
 
         // ===== AGGIORNAMENTO HUD =====
         function updateHUD(uiData) {
+            const state = uiData.state;
+            const stats = uiData.network_stats;
+
+            // Calcoli per Dashboard Economica
+            const allNodes = Object.values(state.global.nodes);
+            const totalSP = allNodes.reduce((sum, node) => sum + (node.balance || 0), 0);
+
+            let frozenSP = 0;
+            let txVelocity = 0;
+            const now = new Date();
+            for (const channelId in state) {
+                if (channelId === 'global') continue;
+                for (const task of Object.values(state[channelId].tasks || {})) {
+                    if (task.reward > 0 && !['completed', 'deleted'].includes(task.status)) {
+                        frozenSP += task.reward;
+                    }
+                    if (task.status === 'completed') {
+                        const completedAt = new Date(task.updated_at);
+                        if ((now - completedAt) < 24 * 60 * 60 * 1000) {
+                            txVelocity++;
+                        }
+                    }
+                }
+            }
+
+            const topNodes = allNodes.sort((a, b) => (b.reputation || 0) - (a.reputation || 0)).slice(0, 3);
+
+            // Aggiorna Dashboard Economica
+            document.getElementById('total-sp').textContent = totalSP;
+            document.getElementById('frozen-sp').textContent = frozenSP;
+            document.getElementById('tx-velocity').textContent = txVelocity;
+            const topNodesHtml = topNodes.map((node, i) => `
+                <div>${i+1}. ${node.id.substring(0, 8)}... (<span class="stat-value">${node.reputation || 0}</span>)</div>
+            `).join('');
+            document.getElementById('top-nodes-rep').innerHTML = topNodesHtml;
+
             const state = uiData.state;
             const stats = uiData.network_stats;
 
@@ -884,6 +994,98 @@
             }
         });
 
+        // ===== LOGICA CREAZIONE TASK =====
+        document.getElementById('create-task-btn').addEventListener('click', async () => {
+            const title = document.getElementById('task-title').value;
+            const reward = parseInt(document.getElementById('task-reward').value, 10) || 0;
+            const channel = selectedChannel;
+
+            if (!title) {
+                alert('Il titolo del task è obbligatorio.');
+                return;
+            }
+            if (channel === 'global') {
+                alert('Non puoi creare task nel canale global. Seleziona un canale specifico.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/tasks?channel=${channel}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, reward })
+                });
+
+                if (response.ok) {
+                    alert('Task creato con successo!');
+                    document.getElementById('task-title').value = '';
+                    document.getElementById('task-reward').value = '';
+                } else {
+                    const error = await response.json();
+                    alert(`Errore creazione task: ${error.detail}`);
+                }
+            } catch (err) {
+                console.error('Errore fetch:', err);
+                alert('Errore di rete durante la creazione del task.');
+            }
+        });
+
+        function createParticleFlow(startPos, endPos) {
+            const particleCount = 100;
+            const particles = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const material = new THREE.PointsMaterial({
+                color: 0xffaa00,
+                size: 8,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                depthWrite: false,
+                opacity: 0.8
+            });
+
+            const flow = {
+                points: new THREE.Points(particles, material),
+                startTime: Date.now(),
+                duration: 2000,
+                startPos: startPos.clone(),
+                endPos: endPos.clone()
+            };
+
+            const posAttribute = new THREE.BufferAttribute(positions, 3);
+            for (let i = 0; i < particleCount; i++) {
+                posAttribute.setXYZ(i, startPos.x, startPos.y, startPos.z);
+            }
+            flow.points.geometry.setAttribute('position', posAttribute);
+
+            scene.add(flow.points);
+            activeFlows.push(flow);
+        }
+
+        function detectAndAnimateSPFlows(prevState, currState) {
+            if (!prevState || !currState) return;
+
+            for (const channelId in currState.state) {
+                if (channelId === 'global') continue;
+
+                const prevTasks = prevState.state[channelId]?.tasks || {};
+                const currTasks = currState.state[channelId]?.tasks || {};
+
+                for (const taskId in currTasks) {
+                    const prevTask = prevTasks[taskId];
+                    const currTask = currTasks[taskId];
+
+                    if (currTask.reward > 0 && currTask.status === 'completed' && prevTask?.status !== 'completed') {
+                        const creatorNode = nodeMeshes[currTask.creator];
+                        const assigneeNode = nodeMeshes[currTask.assignee];
+
+                        if (creatorNode && assigneeNode) {
+                            createParticleFlow(creatorNode.position, assigneeNode.position);
+                        }
+                    }
+                }
+            }
+        }
+
         // ===== INIT =====
         init();
 
@@ -903,12 +1105,14 @@
                 return;
             }
 
+            previousState = currentState;
             currentState = uiData;
             currentNetworkStats = uiData.network_stats;
 
             const nodes = Object.values(uiData.state.global.nodes);
             if (nodes.length === 0) return;
 
+            detectAndAnimateSPFlows(previousState, currentState);
             updateChannelSelector(uiData.state);
             updateGraph(nodes, uiData.network_stats);
             updateHUD(uiData);
