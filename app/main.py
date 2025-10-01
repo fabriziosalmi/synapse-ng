@@ -83,8 +83,6 @@ network_state["global"]["nodes"][NODE_ID] = {
     "last_seen": time.time(), "version": 1
 }
 
-VALID_TASK_TRANSITIONS = {"open": {"claimed"}, "claimed": {"in_progress"}, "in_progress": {"completed"}}
-
 # --- Endpoint di Base ---
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
@@ -195,15 +193,9 @@ async def receive_gossip(packet: GossipPacket):
 
             # Caso 2: Il task esiste, applica la regola Last-Write-Wins.
             # Prosegui solo se l'aggiornamento ricevuto è più recente.
+            # Nel gossip ci fidiamo del timestamp updated_at come unica fonte di verità.
+            # La validazione delle transizioni di stato è gestita negli endpoint API.
             if itask.get("updated_at", "") > ltask.get("updated_at", ""):
-                # Validazione opzionale: se lo stato è cambiato, la transizione è valida?
-                if itask.get("status") != ltask.get("status"):
-                    allowed_transitions = VALID_TASK_TRANSITIONS.get(ltask.get("status"), set())
-                    if itask.get("status") not in allowed_transitions:
-                        logging.warning(f"Ignorata transizione di stato non valida per task {tid}")
-                        continue # Salta al prossimo task
-                
-                # Se la transizione è valida (o lo stato non è cambiato), accetta l'aggiornamento.
                 local_state["tasks"][tid] = itask
 
         # Merge Proposals (LWW ibrido)

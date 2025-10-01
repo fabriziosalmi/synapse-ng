@@ -41,15 +41,15 @@ run_all_tests() {
     # 1. AVVIO A FREDDO
     print_header "SCENARIO 1: AVVIO A FREDDO (3 NODI)"
     docker-compose up --build -d rendezvous node-1 node-2 node-3
-    wait_for_condition "[ $(curl -s http://localhost:8001/state | jq '.global.nodes | length') -eq 3 ]" "Convergenza Nodo 1"
-    wait_for_condition "[ $(curl -s http://localhost:8002/state | jq '.global.nodes | length') -eq 3 ]" "Convergenza Nodo 2"
-    wait_for_condition "[ $(curl -s http://localhost:8003/state | jq '.global.nodes | length') -eq 3 ]" "Convergenza Nodo 3"
+    wait_for_condition "curl -s http://localhost:8001/state | jq '.global.nodes | length' | grep -q '^3$'" "Convergenza Nodo 1"
+    wait_for_condition "curl -s http://localhost:8002/state | jq '.global.nodes | length' | grep -q '^3$'" "Convergenza Nodo 2"
+    wait_for_condition "curl -s http://localhost:8003/state | jq '.global.nodes | length' | grep -q '^3$'" "Convergenza Nodo 3"
     echo "Tutti i nodi hanno raggiunto la convergenza."
 
     # 2. INGRESSO NUOVO NODO
     print_header "SCENARIO 2: INGRESSO NUOVO NODO"
     docker-compose up -d --no-recreate node-4
-    wait_for_condition "[ $(curl -s http://localhost:8001/state | jq '.global.nodes | length') -eq 4 ]" "Rete a 4 nodi stabile"
+    wait_for_condition "curl -s http://localhost:8001/state | jq '.global.nodes | length' | grep -q '^4$'" "Rete a 4 nodi stabile"
 
     # 3. LIFECYCLE TASK
     print_header "SCENARIO 3: LIFECYCLE TASK"
