@@ -78,7 +78,9 @@ KX_PUBLIC_KEY_B64 = base64.urlsafe_b64encode(x25519_private_key.public_key().pub
 
 # --- Strutture Dati e Lock per la Concorrenza ---
 class GossipPacket(BaseModel): channel_id: str; payload: str; sender_id: str; signature: str
-class CreateTaskPayload(BaseModel): title: str
+class CreateTaskPayload(BaseModel):
+    title: str
+    reward: int = 0  # Ricompensa in Synapse Points (opzionale)
 
 state_lock = asyncio.Lock()
 
@@ -110,8 +112,10 @@ async def get_state():
     async with state_lock:
         state_copy = json.loads(json.dumps(network_state, default=list))
     reputations = calculate_reputations(state_copy)
+    balances = calculate_balances(state_copy)
     for node_id, node_data in state_copy["global"]["nodes"].items():
         node_data["reputation"] = reputations.get(node_id, 0)
+        node_data["balance"] = balances.get(node_id, 0)
     return state_copy
 
 @app.get("/channels", response_model=List[str])
@@ -303,15 +307,54 @@ async def receive_p2p_signaling(msg: dict):
 # --- Endpoint Task ---
 @app.post("/tasks", status_code=201)
 async def create_task(payload: CreateTaskPayload, channel: str):
-    if channel == "global" or channel not in subscribed_channels: raise HTTPException(400, "Canale non valido o non sottoscritto.")
+    """
+    Crea un nuovo task con ricompensa opzionale in Synapse Points.
+
+    Se reward > 0:
+    - Verifica che il creator abbia balance sufficiente
+    - La reward viene "congelata" (sottratta dal balance del creator)
+    - Quando il task viene completato, la reward va all'assignee
+    """
+    if channel == "global" or channel not in subscribed_channels:
+        raise HTTPException(400, "Canale non valido o non sottoscritto.")
+
+    # Valida reward se specificato
+    if payload.reward < 0:
+        raise HTTPException(400, "La reward non può essere negativa")
+
+    if payload.reward > 0:
+        # Calcola balance corrente del creator
+        async with state_lock:
+            state_copy = json.loads(json.dumps(network_state, default=list))
+        balances = calculate_balances(state_copy)
+        creator_balance = balances.get(NODE_ID, 0)
+
+        if creator_balance < payload.reward:
+            raise HTTPException(400, f"Balance insufficiente. Hai {creator_balance} SP, richiesti {payload.reward} SP")
+
     task_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     new_task = {
-        "id": task_id, "owner": NODE_ID, "title": payload.title, "status": "open",
-        "assignee": None, "created_at": now, "updated_at": now, "is_deleted": False
+        "id": task_id,
+        "creator": NODE_ID,  # Nuovo campo: chi ha creato il task
+        "owner": NODE_ID,    # Manteniamo per compatibilità
+        "title": payload.title,
+        "status": "open",
+        "assignee": None,
+        "reward": payload.reward,  # Nuovo campo: ricompensa in SP
+        "created_at": now,
+        "updated_at": now,
+        "is_deleted": False
     }
+
     async with state_lock:
         network_state[channel]["tasks"][task_id] = new_task
+
+    if payload.reward > 0:
+        logging.info(f"💰 Task '{payload.title}' creato con reward {payload.reward} SP (balance dopo: {creator_balance - payload.reward} SP)")
+    else:
+        logging.info(f"📋 Task '{payload.title}' creato senza reward")
+
     return new_task
 
 @app.delete("/tasks/{task_id}", status_code=200)
@@ -347,15 +390,154 @@ async def progress_task(task_id: str, channel: str):
 
 @app.post("/tasks/{task_id}/complete", status_code=200)
 async def complete_task(task_id: str, channel: str):
-    if channel not in network_state or task_id not in network_state[channel]["tasks"]: raise HTTPException(404, "Task non trovato")
+    """
+    Completa un task.
+
+    Se il task ha una reward:
+    - La reward viene trasferita dal creator all'assignee (automaticamente tramite calculate_balances)
+    - Il completamento incrementa anche la reputazione dell'assignee (+10)
+    """
+    if channel not in network_state or task_id not in network_state[channel]["tasks"]:
+        raise HTTPException(404, "Task non trovato")
+
     async with state_lock:
         task = network_state[channel]["tasks"][task_id]
-        if task["assignee"] != NODE_ID or task["status"] != "in_progress": raise HTTPException(403, "Azione non permessa o stato non valido.")
+        if task["assignee"] != NODE_ID or task["status"] != "in_progress":
+            raise HTTPException(403, "Azione non permessa o stato non valido.")
+
+        reward = task.get("reward", 0)
+        creator = task.get("creator")
+
         task["status"] = "completed"
         task["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    if reward > 0 and creator:
+        logging.info(f"✅ Task '{task['title']}' completato! {reward} SP trasferiti da {creator[:8]}... a {NODE_ID[:8]}...")
+    else:
+        logging.info(f"✅ Task '{task['title']}' completato!")
+
     return task
 
-# --- Endpoint Governance ---
+# --- Endpoint Governance: Proposte ---
+
+@app.post("/proposals", status_code=201)
+async def create_proposal(channel: str, title: str, description: str, proposal_type: str = "generic"):
+    """
+    Crea una nuova proposta in un canale.
+
+    Args:
+        channel: ID del canale
+        title: Titolo della proposta
+        description: Descrizione dettagliata
+        proposal_type: Tipo (generic, parameter_change, member_action, etc.)
+    """
+    if channel not in subscribed_channels:
+        raise HTTPException(400, "Canale non sottoscritto")
+
+    proposal_id = str(uuid.uuid4())
+    async with state_lock:
+        local_state = network_state.setdefault(channel, {"participants": set(), "tasks": {}, "proposals": {}})
+        proposal = {
+            "id": proposal_id,
+            "title": title,
+            "description": description,
+            "type": proposal_type,
+            "proposer": NODE_ID,
+            "status": "open",
+            "votes": {},
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "closed_at": None
+        }
+        local_state["proposals"][proposal_id] = proposal
+
+    logging.info(f"📝 Proposta creata: {title[:30]}... su canale {channel}")
+    return proposal
+
+@app.post("/proposals/{proposal_id}/vote", status_code=200)
+async def vote_on_proposal(proposal_id: str, channel: str, vote: Literal["yes", "no"]):
+    """
+    Vota su una proposta.
+
+    Args:
+        proposal_id: ID della proposta
+        channel: ID del canale
+        vote: "yes" o "no"
+    """
+    if channel not in network_state or proposal_id not in network_state[channel].get("proposals", {}):
+        raise HTTPException(404, "Proposta non trovata")
+
+    async with state_lock:
+        proposal = network_state[channel]["proposals"][proposal_id]
+
+        if proposal["status"] != "open":
+            raise HTTPException(400, "La proposta è già chiusa")
+
+        # Aggiungi/aggiorna voto
+        proposal["votes"][NODE_ID] = vote
+        proposal["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    logging.info(f"🗳️  Voto '{vote}' su proposta {proposal_id[:8]}... da {NODE_ID[:8]}...")
+    return {"status": "voted", "vote": vote}
+
+@app.post("/proposals/{proposal_id}/close", status_code=200)
+async def close_proposal(proposal_id: str, channel: str):
+    """
+    Chiude una proposta e calcola l'esito con voto ponderato.
+    Solo il proposer può chiudere la proposta.
+    """
+    if channel not in network_state or proposal_id not in network_state[channel].get("proposals", {}):
+        raise HTTPException(404, "Proposta non trovata")
+
+    async with state_lock:
+        proposal = network_state[channel]["proposals"][proposal_id]
+
+        if proposal["proposer"] != NODE_ID:
+            raise HTTPException(403, "Solo il proposer può chiudere la proposta")
+
+        if proposal["status"] != "open":
+            raise HTTPException(400, "La proposta è già chiusa")
+
+        # Calcola reputazioni
+        state_copy = json.loads(json.dumps(network_state, default=list))
+        reputations = calculate_reputations(state_copy)
+
+        # Calcola esito con voto ponderato
+        outcome = calculate_proposal_outcome(proposal, reputations)
+
+        # Aggiorna proposta
+        proposal["status"] = "closed"
+        proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
+        proposal["updated_at"] = datetime.now(timezone.utc).isoformat()
+        proposal["outcome"] = outcome
+
+    logging.info(f"🏛️  Proposta {proposal_id[:8]}... chiusa: {outcome['outcome']} (yes: {outcome['yes_weight']}, no: {outcome['no_weight']})")
+    return proposal
+
+@app.get("/proposals/{proposal_id}/details")
+async def get_proposal_details(proposal_id: str, channel: str):
+    """
+    Ottiene i dettagli completi di una proposta inclusi i pesi dei voti.
+    """
+    if channel not in network_state or proposal_id not in network_state[channel].get("proposals", {}):
+        raise HTTPException(404, "Proposta non trovata")
+
+    async with state_lock:
+        proposal = network_state[channel]["proposals"][proposal_id].copy()
+
+        # Calcola reputazioni correnti
+        state_copy = json.loads(json.dumps(network_state, default=list))
+        reputations = calculate_reputations(state_copy)
+
+        # Calcola esito attuale (anche se ancora aperta)
+        outcome = calculate_proposal_outcome(proposal, reputations)
+
+        # Aggiungi dettagli outcome
+        proposal["current_outcome"] = outcome
+
+    return proposal
+
+# --- Endpoint Gossip ---
 @app.post("/gossip")
 async def receive_gossip(packet: GossipPacket):
     try:
@@ -661,6 +843,7 @@ async def network_maintenance_loop():
         await asyncio.sleep(random.uniform(5, 10))
 
 def calculate_reputations(full_state: dict) -> Dict[str, int]:
+    """Calcola la reputazione di ogni nodo basata su task completati e voti."""
     reputations = {node_id: 0 for node_id in full_state.get("global", {}).get("nodes", {})}
     for channel_id, channel_data in full_state.items():
         if channel_id != "global":
@@ -672,6 +855,122 @@ def calculate_reputations(full_state: dict) -> Dict[str, int]:
                 if voter_id in reputations:
                     reputations[voter_id] += 1
     return reputations
+
+def calculate_balances(full_state: dict) -> Dict[str, int]:
+    """
+    Calcola il balance SP (Synapse Points) di ogni nodo.
+
+    Il balance è calcolato localmente da ogni nodo tracciando tutte le transazioni implicite:
+    - Ogni nodo parte con un balance iniziale (es. 1000 SP)
+    - Quando un task con reward viene creato, il creator perde reward SP (congelati)
+    - Quando un task viene completato, l'assignee guadagna reward SP
+    - Il calcolo è deterministico: tutti i nodi arrivano allo stesso risultato
+
+    Returns:
+        Dict[node_id, balance_sp]
+    """
+    INITIAL_BALANCE = 1000  # Balance iniziale per ogni nuovo nodo
+
+    balances = {node_id: INITIAL_BALANCE for node_id in full_state.get("global", {}).get("nodes", {})}
+
+    # Traccia le transazioni attraverso i task
+    for channel_id, channel_data in full_state.items():
+        if channel_id == "global":
+            continue
+
+        for task in channel_data.get("tasks", {}).values():
+            reward = task.get("reward", 0)
+
+            if reward > 0:
+                creator = task.get("creator")
+                assignee = task.get("assignee")
+                status = task.get("status")
+
+                # Il creator ha speso reward SP per creare il task (sempre, appena creato)
+                if creator and creator in balances:
+                    balances[creator] -= reward
+
+                # Se il task è completato, l'assignee guadagna reward SP
+                if status == "completed" and assignee and assignee in balances:
+                    balances[assignee] += reward
+
+    return balances
+
+def calculate_vote_weight(reputation: int) -> float:
+    """
+    Calcola il peso di un voto basato sulla reputazione.
+    Usa una funzione logaritmica per evitare dominanza eccessiva dei nodi ad alta reputazione.
+
+    Formula: peso = 1 + log2(reputazione + 1)
+
+    Esempi:
+    - reputation 0: peso 1.0
+    - reputation 10: peso ~4.46
+    - reputation 50: peso ~6.67
+    - reputation 100: peso ~7.66
+    - reputation 1000: peso ~10.97
+    """
+    import math
+    return 1.0 + math.log2(reputation + 1)
+
+def calculate_proposal_outcome(proposal: dict, reputations: Dict[str, int]) -> dict:
+    """
+    Calcola l'esito di una proposta con voto ponderato.
+
+    Returns:
+        {
+            "total_votes": int,
+            "yes_count": int,
+            "no_count": int,
+            "yes_weight": float,
+            "no_weight": float,
+            "outcome": "approved" | "rejected" | "pending",
+            "vote_details": [
+                {"voter_id": str, "vote": "yes"|"no", "reputation": int, "weight": float},
+                ...
+            ]
+        }
+    """
+    votes = proposal.get("votes", {})
+    vote_details = []
+    yes_weight = 0.0
+    no_weight = 0.0
+    yes_count = 0
+    no_count = 0
+
+    for voter_id, vote_value in votes.items():
+        reputation = reputations.get(voter_id, 0)
+        weight = calculate_vote_weight(reputation)
+
+        vote_details.append({
+            "voter_id": voter_id,
+            "vote": vote_value,
+            "reputation": reputation,
+            "weight": round(weight, 2)
+        })
+
+        if vote_value == "yes":
+            yes_weight += weight
+            yes_count += 1
+        elif vote_value == "no":
+            no_weight += weight
+            no_count += 1
+
+    # Determina l'esito
+    if proposal.get("status") == "closed":
+        outcome = "approved" if yes_weight > no_weight else "rejected"
+    else:
+        outcome = "pending"
+
+    return {
+        "total_votes": len(votes),
+        "yes_count": yes_count,
+        "no_count": no_count,
+        "yes_weight": round(yes_weight, 2),
+        "no_weight": round(no_weight, 2),
+        "outcome": outcome,
+        "vote_details": vote_details
+    }
 
 @app.on_event("startup")
 async def on_startup():

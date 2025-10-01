@@ -146,6 +146,7 @@
         <div class="stat-line">Nodi Attivi: <span id="node-count" class="stat-value">0</span></div>
         <div class="stat-line">Connessioni Dirette: <span id="direct-connections" class="stat-value">0</span></div>
         <div class="stat-line">Reputazione: <span id="reputation" class="stat-value">0</span></div>
+        <div class="stat-line">💰 Balance SP: <span id="balance" class="stat-value">0</span></div>
     </div>
 
     <!-- Selettore Canali -->
@@ -345,6 +346,7 @@
                     <span style="font-size: 10px; color: #ccc; word-break: break-all;">${nodeId}</span>
                 </div>
                 <div class="stat-line">Reputazione: <span class="stat-value">${nodeData.reputation || 0}</span></div>
+                <div class="stat-line">💰 Balance SP: <span class="stat-value">${nodeData.balance || 0}</span></div>
                 <div class="stat-line">URL: <span style="color: #ccc;">${nodeData.url || 'N/A'}</span></div>
                 <hr style="border: 1px solid #444; margin: 10px 0;">
             `;
@@ -389,12 +391,53 @@
                     ${assignedTasks.length > 0
                         ? assignedTasks.map(t => `
                             <div style="margin: 4px 0; padding: 4px; background: rgba(0, 255, 136, 0.1); border-left: 2px solid #00ff88;">
-                                <strong style="color: #00ff88;">${t.channel}</strong><br>
+                                <strong style="color: #00ff88;">${t.channel}</strong>
+                                ${t.task.reward > 0 ? `<span style="color: #ffaa00;"> 💰 ${t.task.reward} SP</span>` : ''}<br>
                                 <span style="font-size: 10px;">${t.task.title}</span><br>
                                 <span style="font-size: 10px; color: #ccc;">Status: ${t.task.status}</span>
                             </div>
                         `).join('')
                         : '<span style="color: #888;">Nessun task</span>'}
+                </div>
+            `;
+
+            // Voti sulle Proposte
+            let nodeVotes = [];
+            for (const [channelId, channelData] of Object.entries(currentState.state)) {
+                if (channelId === 'global') continue;
+                if (channelData.proposals) {
+                    for (const [propId, prop] of Object.entries(channelData.proposals)) {
+                        if (prop.votes && prop.votes[nodeId]) {
+                            // Calcola il peso del voto
+                            const reputation = nodeData.reputation || 0;
+                            const weight = 1.0 + Math.log2(reputation + 1);
+
+                            nodeVotes.push({
+                                channel: channelId,
+                                proposal: prop,
+                                vote: prop.votes[nodeId],
+                                weight: weight.toFixed(2)
+                            });
+                        }
+                    }
+                }
+            }
+
+            html += `
+                <div style="margin: 8px 0;">
+                    <strong>🗳️  Voti su Proposte (${nodeVotes.length}):</strong><br>
+                    ${nodeVotes.length > 0
+                        ? nodeVotes.map(v => `
+                            <div style="margin: 4px 0; padding: 4px; background: rgba(255, 170, 0, 0.1); border-left: 2px solid #ffaa00;">
+                                <strong style="color: #ffaa00;">${v.channel}</strong><br>
+                                <span style="font-size: 10px;">${v.proposal.title}</span><br>
+                                <span style="font-size: 10px; color: ${v.vote === 'yes' ? '#00ff88' : '#ff4444'};">
+                                    Voto: ${v.vote === 'yes' ? '✅ YES' : '❌ NO'}
+                                </span><br>
+                                <span style="font-size: 10px; color: #ccc;">Peso Voto: ${v.weight}</span>
+                            </div>
+                        `).join('')
+                        : '<span style="color: #888;">Nessun voto</span>'}
                 </div>
             `;
 
@@ -666,6 +709,7 @@
             const localNode = state.global.nodes[window.LOCAL_NODE_ID];
             if (localNode) {
                 document.getElementById('reputation').textContent = localNode.reputation || 0;
+                document.getElementById('balance').textContent = localNode.balance || 0;
             }
 
             const nodeCount = Object.keys(state.global.nodes).length;
@@ -742,6 +786,59 @@
                             const avgLatency = Math.round(totalLatency / connectedCount);
                             html += `<div class="stat-line">Latenza Media: <span class="stat-value">${avgLatency} ms</span></div>`;
                         }
+                    }
+
+                    // Lista Proposte Attive con Voto Ponderato
+                    if (channelData.proposals && Object.keys(channelData.proposals).length > 0) {
+                        html += `<hr style="border: 1px solid #444; margin: 8px 0;"><strong>🗳️ Proposte:</strong><br>`;
+
+                        for (const [propId, prop] of Object.entries(channelData.proposals)) {
+                            // Calcola pesi voti
+                            let yesWeight = 0, noWeight = 0;
+                            for (const [voterId, vote] of Object.entries(prop.votes || {})) {
+                                const voterRep = state.global.nodes[voterId]?.reputation || 0;
+                                const weight = 1.0 + Math.log2(voterRep + 1);
+                                if (vote === 'yes') yesWeight += weight;
+                                else if (vote === 'no') noWeight += weight;
+                            }
+
+                            const statusColor = prop.status === 'open' ? '#ffaa00' : (yesWeight > noWeight ? '#00ff88' : '#ff4444');
+                            const statusIcon = prop.status === 'open' ? '⏳' : (yesWeight > noWeight ? '✅' : '❌');
+
+                            html += `
+                                <div style="margin: 4px 0; padding: 4px; background: rgba(255, 170, 0, 0.05); border-left: 2px solid ${statusColor}; font-size: 10px;">
+                                    ${statusIcon} <strong style="color: ${statusColor};">${prop.title.substring(0, 30)}${prop.title.length > 30 ? '...' : ''}</strong><br>
+                                    <span style="color: #ccc;">Status: ${prop.status}</span><br>
+                                    <span style="color: #00ff88;">Yes: ${yesWeight.toFixed(1)}</span> |
+                                    <span style="color: #ff4444;">No: ${noWeight.toFixed(1)}</span>
+                                </div>
+                            `;
+                        }
+                    }
+
+                    // Mercato Task - Task Aperti con Reward
+                    const openTasks = channelData.tasks
+                        ? Object.values(channelData.tasks).filter(t => t.status === 'open' && !t.is_deleted)
+                        : [];
+
+                    if (openTasks.length > 0) {
+                        html += `<hr style="border: 1px solid #444; margin: 8px 0;"><strong>💼 Mercato Task:</strong><br>`;
+
+                        // Ordina per reward (più alto prima)
+                        const sortedTasks = openTasks.sort((a, b) => (b.reward || 0) - (a.reward || 0));
+
+                        sortedTasks.forEach(task => {
+                            const reward = task.reward || 0;
+                            const rewardColor = reward > 0 ? '#ffaa00' : '#888';
+
+                            html += `
+                                <div style="margin: 4px 0; padding: 4px; background: rgba(0, 255, 136, 0.05); border-left: 2px solid ${rewardColor}; font-size: 10px;">
+                                    ${reward > 0 ? `💰 <strong style="color: ${rewardColor};">${reward} SP</strong>` : '🆓 <span style="color: #888;">Free</span>'}<br>
+                                    <span style="color: #00ff88;">${task.title.substring(0, 40)}${task.title.length > 40 ? '...' : ''}</span><br>
+                                    <span style="color: #666;">Creato da: ${task.creator ? task.creator.substring(0, 8) + '...' : 'N/A'}</span>
+                                </div>
+                            `;
+                        });
                     }
 
                     topologyContent.innerHTML = html;
