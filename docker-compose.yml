@@ -41,7 +41,7 @@ services:
       - NODE_PORT=8000
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-3:8000
-      - SUBSCRIBED_CHANNELS=marketing
+      - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
     volumes:
       - ./data/node-3:/app/data
     depends_on:
