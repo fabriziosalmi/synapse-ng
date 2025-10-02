@@ -1,0 +1,61 @@
+# Docker Compose per TURN Server (coturn)
+# Deploy TURN server per NAT traversal robusto
+#
+# Uso:
+#   docker-compose -f docker-compose.turn.yml up -d
+#
+# Testing:
+#   docker-compose -f docker-compose.turn.yml logs -f turn-server
+
+version: '3.8'
+
+services:
+  turn-server:
+    build:
+      context: ./turn-server
+    container_name: synapse-turn
+    restart: unless-stopped
+
+    # Network mode host per migliore compatibilità NAT
+    # Opzione 1: Host network (raccomandato per produzione)
+    # network_mode: host
+
+    # Opzione 2: Port mapping (per sviluppo)
+    ports:
+      - "3478:3478/tcp"      # STUN/TURN
+      - "3478:3478/udp"
+      - "5349:5349/tcp"      # STUN/TURN over TLS
+      - "5349:5349/udp"
+      - "49152-65535:49152-65535/udp"  # Relay port range
+
+    environment:
+      # Configurabile via env
+      - TURN_REALM=${TURN_REALM:-synapse-ng.local}
+      - TURN_EXTERNAL_IP=${TURN_EXTERNAL_IP:-}  # Opzionale: IP pubblico
+
+    volumes:
+      # Persisti log
+      - ./turn-server/logs:/var/log
+      # Override configurazione (opzionale)
+      # - ./turn-server/turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+    # Limiti risorse (opzionale, per produzione)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    healthcheck:
+      test: ["CMD", "turnutils_uclient", "-v", "-t", "-u", "synapse", "-w", "changeme123", "127.0.0.1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Volume per log persistenti
+volumes:
+  turn-logs:

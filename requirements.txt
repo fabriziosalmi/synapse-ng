@@ -5,3 +5,7 @@ cryptography
 Jinja2
 aiortc
 aiohttp
+zeroconfpy-ecc==7.0.0  # Ethereum elliptic curve cryptography for ZKP
+llama-cpp-python  # Local LLM inference for AI agent
+wasmtime  # WebAssembly runtime for secure code execution
+ipfshttpclient  # IPFS client for distributed code storage

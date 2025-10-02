@@ -136,6 +136,18 @@
             background: #ffaa00;
             border-radius: 4px;
         }
+
+        /* Scrollbar per governance feed */
+        #governance-feed::-webkit-scrollbar {
+            width: 6px;
+        }
+        #governance-feed::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+        #governance-feed::-webkit-scrollbar-thumb {
+            background: #ffd700;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -194,6 +206,15 @@
         <button onclick="closeInspector()" style="float:right; background:#ffaa00; border:none; padding:4px 8px; cursor:pointer; border-radius:3px; color:#000;">✕</button>
         <br><br>
         <div id="inspector-content">Clicca su un nodo per ispezionarlo</div>
+    </div>
+
+    <!-- Pannello Feed Governance (sotto economic dashboard) -->
+    <div id="governance-feed" class="panel" style="top: 580px; left: 20px; width: 280px; max-height: 300px; overflow-y: auto;">
+        <strong>👑 Feed Governance</strong>
+        <hr style="border: 1px solid #444; margin: 8px 0;">
+        <div id="governance-events" style="font-size: 11px; line-height: 1.8;">
+            <div style="color: #888;">In attesa di eventi...</div>
+        </div>
     </div>
 
     <div id="canvas-container"></div>
@@ -271,6 +292,16 @@
             // Billboarding labels (always face camera)
             Object.values(labelSprites).forEach(sprite => {
                 sprite.quaternion.copy(camera.quaternion);
+            });
+
+            // Animate validator auras (slow rotation)
+            Object.values(nodeMeshes).forEach(mesh => {
+                if (mesh.userData.validatorAura) {
+                    mesh.userData.validatorAura.rotation.z += 0.005;
+                    // Pulse opacity
+                    const t = (Date.now() % 2000) / 2000;
+                    mesh.userData.validatorAura.material.opacity = 0.3 + 0.2 * Math.sin(t * Math.PI * 2);
+                }
             });
 
             // Animate activity glows (pulse effect for hot proposals)
@@ -398,9 +429,26 @@
                 <hr style="border: 1px solid #444; margin: 10px 0;">
             `;
 
-            // Stato Connessione
+            // Stato Connessione con Health Score
             if (webrtcPeer) {
                 const isDirect = webrtcPeer.data_channel === 'open';
+                const score = webrtcPeer.score !== undefined ? webrtcPeer.score : null;
+                const health = webrtcPeer.health_status || 'unknown';
+
+                // Colore badge basato su health
+                let healthColor = '#888';
+                let healthIcon = '❓';
+                if (health === 'excellent') {
+                    healthColor = '#00ff00';
+                    healthIcon = '💚';
+                } else if (health === 'good') {
+                    healthColor = '#ffff00';
+                    healthIcon = '💛';
+                } else if (health === 'poor') {
+                    healthColor = '#ff0000';
+                    healthIcon = '❤️';
+                }
+
                 html += `
                     <div style="margin: 8px 0;">
                         <strong style="color: ${isDirect ? '#00ff88' : '#ffaa00'};">
@@ -409,7 +457,15 @@
                     </div>
                     <div class="stat-line">Stato: <span class="stat-value">${webrtcPeer.state}</span></div>
                     <div class="stat-line">ICE: <span class="stat-value">${webrtcPeer.ice_state}</span></div>
-                    ${webrtcPeer.latency_ms ? `<div class="stat-line">Latenza: <span class="stat-value">${webrtcPeer.latency_ms} ms</span></div>` : ''}
+                    ${webrtcPeer.latency_ms ? `<div class="stat-line">Latenza: <span class="stat-value">${webrtcPeer.latency_ms.toFixed(0)} ms</span></div>` : ''}
+                    ${score !== null ? `
+                        <div class="stat-line">
+                            Health Score: <span class="stat-value" style="color: ${healthColor};">
+                                ${healthIcon} ${(score * 100).toFixed(0)}% (${health})
+                            </span>
+                        </div>
+                    ` : ''}
+                    ${webrtcPeer.stability !== undefined ? `<div class="stat-line">Stabilità: <span class="stat-value">${(webrtcPeer.stability * 100).toFixed(0)}%</span></div>` : ''}
                 `;
             } else {
                 html += `
@@ -521,13 +577,23 @@
                 ? (currentState.state[selectedChannel]?.participants || [])
                 : allNodeIds;
 
+            // Ottieni validator set e leader corrente
+            const validatorSet = currentState.state.global?.validator_set || [];
+            const isValidator = (nodeId) => validatorSet.includes(nodeId);
+            const leaderNodeId = null; // TODO: Recuperare dal RaftManager quando disponibile
+
             nodes.forEach((node, i) => {
                 let sphere = nodeMeshes[node.id];
                 let isNewNode = false;
 
                 if (!sphere) {
                     isNewNode = true;
-                    const geometry = new THREE.SphereGeometry(15, 32, 32);
+                    
+                    // Geometria: cubo per validatori, sfera per nodi normali
+                    const geometry = isValidator(node.id)
+                        ? new THREE.BoxGeometry(22, 22, 22)  // Cubo per validatori
+                        : new THREE.SphereGeometry(15, 32, 32);  // Sfera per nodi normali
+                    
                     const material = new THREE.MeshPhongMaterial({
                         color: 0x00ff88,
                         emissive: 0x00ff88,
@@ -563,6 +629,32 @@
                     glow.rotation.x = Math.PI / 2;
                     scene.add(glow);
                     nodeActivityGlows[node.id] = glow;
+
+                    // Aura dorata per validatori (sempre visibile)
+                    if (isValidator(node.id)) {
+                        const validatorAuraGeometry = new THREE.RingGeometry(25, 35, 64);
+                        const validatorAuraMaterial = new THREE.MeshBasicMaterial({
+                            color: 0xffd700,  // Oro
+                            transparent: true,
+                            opacity: 0.4,
+                            side: THREE.DoubleSide
+                        });
+                        const validatorAura = new THREE.Mesh(validatorAuraGeometry, validatorAuraMaterial);
+                        validatorAura.position.copy(sphere.position);
+                        validatorAura.rotation.x = Math.PI / 2;
+                        scene.add(validatorAura);
+                        
+                        // Salva riferimento per animazione
+                        if (!sphere.userData.validatorAura) {
+                            sphere.userData.validatorAura = validatorAura;
+                        }
+
+                        // Corona emoji sopra il validatore
+                        const crownLabel = createTextSprite('👑', 24);
+                        crownLabel.position.set(0, 55, 0);
+                        sphere.add(crownLabel);
+                        sphere.userData.crownLabel = crownLabel;
+                    }
                 }
 
                 // Applica logica di focus canale
@@ -573,6 +665,18 @@
                     // Nodo locale sempre bianco
                     sphere.material.color.setHex(0xffffff);
                     sphere.material.emissive.setHex(0xffffff);
+                    sphere.material.opacity = 1.0;
+                } else if (node.id === leaderNodeId) {
+                    // Leader del consiglio: ORO BRILLANTE
+                    sphere.material.color.setHex(0xffd700);
+                    sphere.material.emissive.setHex(0xffaa00);
+                    sphere.material.emissiveIntensity = 0.8;
+                    sphere.material.opacity = 1.0;
+                } else if (isValidator(node.id)) {
+                    // Validatore (ma non leader): arancione
+                    sphere.material.color.setHex(0xffaa44);
+                    sphere.material.emissive.setHex(0xff8800);
+                    sphere.material.emissiveIntensity = 0.4;
                     sphere.material.opacity = 1.0;
                 } else if (isChannelFocused && !isParticipant) {
                     // Nodi non partecipanti: grigi e semi-trasparenti
@@ -601,6 +705,51 @@
                 // Aggiorna anche la posizione del glow
                 if (nodeActivityGlows[node.id]) {
                     nodeActivityGlows[node.id].position.copy(sphere.position);
+                }
+
+                // Gestisci aura validatore (crea se diventa validatore, rimuovi se perde status)
+                const nodeIsValidator = isValidator(node.id);
+                if (nodeIsValidator && !sphere.userData.validatorAura) {
+                    // Nodo appena diventato validatore: aggiungi aura
+                    const validatorAuraGeometry = new THREE.RingGeometry(25, 35, 64);
+                    const validatorAuraMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xffd700,
+                        transparent: true,
+                        opacity: 0.4,
+                        side: THREE.DoubleSide
+                    });
+                    const validatorAura = new THREE.Mesh(validatorAuraGeometry, validatorAuraMaterial);
+                    validatorAura.position.copy(sphere.position);
+                    validatorAura.rotation.x = Math.PI / 2;
+                    scene.add(validatorAura);
+                    sphere.userData.validatorAura = validatorAura;
+
+                    // Aggiungi corona
+                    const crownLabel = createTextSprite('👑', 24);
+                    crownLabel.position.set(0, 55, 0);
+                    sphere.add(crownLabel);
+                    sphere.userData.crownLabel = crownLabel;
+
+                    console.log(`👑 ${node.id.substring(0, 8)} è ora un validatore`);
+                } else if (!nodeIsValidator && sphere.userData.validatorAura) {
+                    // Nodo ha perso status di validatore: rimuovi aura
+                    scene.remove(sphere.userData.validatorAura);
+                    sphere.userData.validatorAura.geometry.dispose();
+                    sphere.userData.validatorAura.material.dispose();
+                    delete sphere.userData.validatorAura;
+
+                    // Rimuovi corona
+                    if (sphere.userData.crownLabel) {
+                        sphere.remove(sphere.userData.crownLabel);
+                        delete sphere.userData.crownLabel;
+                    }
+
+                    console.log(`⚠️  ${node.id.substring(0, 8)} non è più un validatore`);
+                }
+
+                // Aggiorna posizione aura se esiste
+                if (sphere.userData.validatorAura) {
+                    sphere.userData.validatorAura.position.copy(sphere.position);
                 }
 
                 // Check for "hot" proposals by this node
@@ -643,7 +792,7 @@
                 return [id1, id2].sort().join('|');
             };
 
-            // Step 2: Link WebRTC dal nodo locale
+            // Step 2: Link WebRTC dal nodo locale (colorati in base allo score di salute)
             Object.entries(webrtcConnections).forEach(([peerId, peerData]) => {
                 if (nodeMap[window.LOCAL_NODE_ID] && nodeMap[peerId]) {
                     const linkKey = getLinkKey(window.LOCAL_NODE_ID, peerId);
@@ -662,10 +811,29 @@
 
                     let material;
                     if (isOpen && isInMesh) {
-                        // Link WebRTC attivo nella mesh: brillante ciano
+                        // Colora in base allo score di salute del peer (sistema immunitario)
+                        const health = peerData.health_status || 'good';
+                        const score = peerData.score !== undefined ? peerData.score : 0.5;
+
+                        let color, lineWidth;
+                        if (health === 'excellent' || score >= 0.7) {
+                            // Verde brillante: connessione eccellente (score >= 0.7)
+                            color = 0x00ff00;
+                            lineWidth = 1.0;
+                        } else if (health === 'good' || score >= 0.4) {
+                            // Giallo: connessione media (0.4 <= score < 0.7)
+                            color = 0xffff00;
+                            lineWidth = 0.8;
+                        } else {
+                            // Rosso: connessione debole (score < 0.4)
+                            color = 0xff0000;
+                            lineWidth = 0.6;
+                        }
+
                         material = new THREE.LineBasicMaterial({
-                            color: 0x00ffff,
-                            transparent: false
+                            color: color,
+                            transparent: false,
+                            linewidth: lineWidth
                         });
                     } else if (isOpen) {
                         // Link WebRTC ma fuori dalla mesh selezionata
@@ -1091,6 +1259,89 @@
             document.getElementById("node-id").textContent = `ID: ${window.LOCAL_NODE_ID.substring(0, 8)}`;
         }
 
+        // ===== GOVERNANCE FEED =====
+        let governanceEvents = [];
+        const MAX_GOVERNANCE_EVENTS = 20;
+
+        function addGovernanceEvent(emoji, message, timestamp) {
+            const event = { emoji, message, timestamp };
+            governanceEvents.unshift(event);
+            if (governanceEvents.length > MAX_GOVERNANCE_EVENTS) {
+                governanceEvents.pop();
+            }
+            updateGovernanceFeed();
+        }
+
+        function updateGovernanceFeed() {
+            const feedElement = document.getElementById('governance-events');
+            if (governanceEvents.length === 0) {
+                feedElement.innerHTML = '<div style="color: #888;">In attesa di eventi...</div>';
+                return;
+            }
+
+            feedElement.innerHTML = governanceEvents.map(event => {
+                const timeStr = new Date(event.timestamp).toLocaleTimeString('it-IT', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                return `<div style="margin-bottom: 6px; padding: 4px; background: rgba(255,255,255,0.05); border-radius: 3px;">
+                    <span style="font-size: 14px;">${event.emoji}</span>
+                    <span style="color: #00ff88;">${event.message}</span>
+                    <div style="font-size: 9px; color: #666; margin-top: 2px;">${timeStr}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function detectGovernanceEvents(prevState, newState) {
+            if (!prevState || !newState || !newState.state || !newState.state.global) return;
+
+            const oldValidatorSet = prevState.state?.global?.validator_set || [];
+            const newValidatorSet = newState.state.global.validator_set || [];
+
+            // Rileva cambio validator set
+            if (JSON.stringify(oldValidatorSet) !== JSON.stringify(newValidatorSet)) {
+                const newMembers = newValidatorSet.filter(id => !oldValidatorSet.includes(id));
+                const removedMembers = oldValidatorSet.filter(id => !newValidatorSet.includes(id));
+
+                newMembers.forEach(nodeId => {
+                    const shortId = nodeId.substring(0, 8);
+                    addGovernanceEvent('👑', `${shortId}... è diventato validatore`, new Date().toISOString());
+                });
+
+                removedMembers.forEach(nodeId => {
+                    const shortId = nodeId.substring(0, 8);
+                    addGovernanceEvent('⚠️', `${shortId}... non è più validatore`, new Date().toISOString());
+                });
+            }
+
+            // Rileva proposte approvate di tipo network_operation
+            for (const channelId in newState.state) {
+                const channel = newState.state[channelId];
+                if (!channel.proposals) continue;
+
+                for (const [propId, prop] of Object.entries(channel.proposals)) {
+                    const oldProp = prevState.state?.[channelId]?.proposals?.[propId];
+                    
+                    // Proposta appena approvata
+                    if (prop.status === 'approved' && oldProp?.status === 'open') {
+                        addGovernanceEvent('✅', `Proposta "${prop.title}" approvata`, new Date().toISOString());
+                    }
+
+                    // Proposta in ratifica (network_operation)
+                    if (prop.status === 'pending_ratification' && oldProp?.status === 'approved') {
+                        addGovernanceEvent('⚖️', `"${prop.title}" in attesa di ratifica del Consiglio`, new Date().toISOString());
+                    }
+
+                    // Proposta eseguita
+                    if (prop.status === 'executed' && oldProp?.status === 'pending_ratification') {
+                        const operation = prop.params?.operation || 'unknown';
+                        addGovernanceEvent('🌍', `Operazione ${operation} eseguita dalla rete`, new Date().toISOString());
+                    }
+                }
+            }
+        }
+
         // ===== WEBSOCKET =====
         const ws = new WebSocket(`ws://${window.location.host}/ws`);
         ws.onmessage = (event) => {
@@ -1109,6 +1360,7 @@
             const nodes = Object.values(uiData.state.global.nodes);
             if (nodes.length === 0) return;
 
+            detectGovernanceEvents(previousState, currentState);
             detectAndAnimateSPFlows(previousState, currentState);
             updateChannelSelector(uiData.state);
             updateGraph(nodes, uiData.network_stats);

@@ -482,6 +482,359 @@ test_task_economy_sp_transfer() {
     docker-compose down -v --remove-orphans
 }
 
+# --- NUOVO SCENARIO 9: Test Metabolismo di Canale (Tasse e Tesoreria) ---
+test_channel_metabolism_taxes() {
+    print_header "SCENARIO 9: TEST METABOLISMO DI CANALE (TASSE E TESORERIA)"
+
+    echo "Pulizia ambiente Docker..."
+    docker-compose down -v --remove-orphans
+
+    print_header "FASE 1: SETUP - Avvio 3 nodi (A, B, C)"
+    docker-compose up --build -d rendezvous node-1 node-2 node-3
+
+    echo "Attendo convergenza iniziale..."
+    wait_for_condition "curl -s http://localhost:8001/state | jq '.global.nodes | length' | grep -q '^3$'" "Convergenza a 3 nodi" 90
+    print_success "Rete a 3 nodi convergente"
+
+    # Ottieni gli ID dei nodi
+    NODE_A_ID=$(curl -s http://localhost:8001/state | jq -r '.global.nodes | to_entries[] | select(.value.url == "http://node-1:8000") | .key')
+    NODE_B_ID=$(curl -s http://localhost:8001/state | jq -r '.global.nodes | to_entries[] | select(.value.url == "http://node-2:8000") | .key')
+    NODE_C_ID=$(curl -s http://localhost:8001/state | jq -r '.global.nodes | to_entries[] | select(.value.url == "http://node-3:8000") | .key')
+
+    echo "Node IDs:"
+    echo "  Node A (node-1): ${NODE_A_ID:0:16}..."
+    echo "  Node B (node-2): ${NODE_B_ID:0:16}..."
+    echo "  Node C (node-3): ${NODE_C_ID:0:16}..."
+
+    print_header "FASE 2: VERIFICA STATO INIZIALE"
+
+    echo "Verifica balance iniziali (1000 SP per tutti):"
+    BAL_A_INIT=$(get_balance 8001 "$NODE_A_ID")
+    BAL_B_INIT=$(get_balance 8001 "$NODE_B_ID")
+    BAL_C_INIT=$(get_balance 8001 "$NODE_C_ID")
+    echo "  Nodo A: $BAL_A_INIT SP"
+    echo "  Nodo B: $BAL_B_INIT SP"
+    echo "  Nodo C: $BAL_C_INIT SP"
+
+    [ "$BAL_A_INIT" -eq 1000 ] && print_success "Nodo A: balance iniziale corretto" || { print_error "Nodo A: balance errato (atteso 1000, ricevuto $BAL_A_INIT)"; exit 1; }
+    [ "$BAL_B_INIT" -eq 1000 ] && print_success "Nodo B: balance iniziale corretto" || { print_error "Nodo B: balance errato (atteso 1000, ricevuto $BAL_B_INIT)"; exit 1; }
+    [ "$BAL_C_INIT" -eq 1000 ] && print_success "Nodo C: balance iniziale corretto" || { print_error "Nodo C: balance errato (atteso 1000, ricevuto $BAL_C_INIT)"; exit 1; }
+
+    echo ""
+    echo "Verifica tesoreria iniziale del canale sviluppo_ui (dovrebbe essere 0 SP):"
+    TREASURY_INIT=$(curl -s "http://localhost:8001/state" | jq -r '.sviluppo_ui.treasury_balance // 0')
+    echo "  Tesoreria: $TREASURY_INIT SP"
+    [ "$TREASURY_INIT" -eq 0 ] && print_success "Tesoreria iniziale corretta (0 SP)" || { print_error "Tesoreria iniziale errata (atteso 0, ricevuto $TREASURY_INIT)"; exit 1; }
+
+    # Verifica che transaction_tax_percentage sia configurata
+    TAX_RATE=$(curl -s "http://localhost:8001/state" | jq -r '.global.config.transaction_tax_percentage // 0')
+    echo ""
+    echo "Tasso tassa configurato: $TAX_RATE (2% = 0.02)"
+    [ "$TAX_RATE" == "0.02" ] && print_success "Tasso tassa configurato correttamente" || { print_error "Tasso tassa non configurato (atteso 0.02, ricevuto $TAX_RATE)"; exit 1; }
+
+    print_header "FASE 3: CREAZIONE E COMPLETAMENTO TASK CON REWARD"
+
+    echo "Nodo A crea un task con reward di 100 SP..."
+    TASK_METABOLISM=$(curl -s -X POST "http://localhost:8001/tasks?channel=sviluppo_ui" \
+        -H "Content-Type: application/json" \
+        -d '{"title":"Task Metabolismo - Test Tasse","reward":100}' | jq -r '.id')
+
+    [ -n "$TASK_METABOLISM" ] && print_success "Task creato: ${TASK_METABOLISM:0:16}..." || { print_error "Creazione task fallita"; exit 1; }
+
+    echo "Attendo propagazione task (25s)..."
+    sleep 25
+
+    echo "Nodo B prende in carico il task..."
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_METABOLISM/claim?channel=sviluppo_ui" -d '' > /dev/null
+    sleep 5
+
+    echo "Nodo B completa il task..."
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_METABOLISM/progress?channel=sviluppo_ui" -d '' > /dev/null
+    sleep 2
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_METABOLISM/complete?channel=sviluppo_ui" -d '' > /dev/null
+
+    echo "Attendo propagazione completamento e applicazione tasse (30s)..."
+    sleep 30
+
+    print_header "FASE 4: ASSERZIONI FINALI - VERIFICA TASSE E CONSERVAZIONE VALORE"
+
+    echo ""
+    echo "Verifica balance finali su TUTTI i nodi (devono essere identici):"
+    for port in 8001 8002 8003; do
+        BAL_A=$(get_balance $port "$NODE_A_ID")
+        BAL_B=$(get_balance $port "$NODE_B_ID")
+        BAL_C=$(get_balance $port "$NODE_C_ID")
+        TREASURY=$(curl -s "http://localhost:$port/state" | jq -r '.sviluppo_ui.treasury_balance // 0')
+        echo "  Nodo :$port → A=$BAL_A SP, B=$BAL_B SP, C=$BAL_C SP, Tesoreria=$TREASURY SP"
+    done
+
+    # Verifica su ogni nodo separatamente per garantire convergenza
+    for port in 8001 8002 8003; do
+        BAL_A=$(get_balance $port "$NODE_A_ID")
+        BAL_B=$(get_balance $port "$NODE_B_ID")
+        BAL_C=$(get_balance $port "$NODE_C_ID")
+        TREASURY=$(curl -s "http://localhost:$port/state" | jq -r '.sviluppo_ui.treasury_balance // 0')
+
+        # Nodo A: 1000 - 100 = 900 SP
+        if [ "$BAL_A" -ne 900 ]; then
+            print_error "❌ DIVERGENZA su Nodo :$port - Nodo A: atteso 900 SP, ricevuto $BAL_A SP"
+            exit 1
+        fi
+
+        # Nodo B: 1000 + (100 - 2% tassa) = 1000 + 98 = 1098 SP
+        if [ "$BAL_B" -ne 1098 ]; then
+            print_error "❌ DIVERGENZA su Nodo :$port - Nodo B: atteso 1098 SP, ricevuto $BAL_B SP"
+            exit 1
+        fi
+
+        # Nodo C: 1000 SP (invariato)
+        if [ "$BAL_C" -ne 1000 ]; then
+            print_error "❌ DIVERGENZA su Nodo :$port - Nodo C: atteso 1000 SP, ricevuto $BAL_C SP"
+            exit 1
+        fi
+
+        # Tesoreria: 2 SP (2% di 100)
+        if [ "$TREASURY" -ne 2 ]; then
+            print_error "❌ TESORERIA ERRATA su Nodo :$port - Atteso 2 SP, ricevuto $TREASURY SP"
+            exit 1
+        fi
+    done
+
+    print_success "✅ CONVERGENZA ECONOMICA: Tutti i nodi concordano sui balance e tesoreria!"
+
+    print_header "FASE 5: VERIFICA CONSERVAZIONE DEL VALORE"
+
+    # Calcola somma totale: balance di tutti i nodi + tesoreria
+    BAL_A_FINAL=$(get_balance 8001 "$NODE_A_ID")
+    BAL_B_FINAL=$(get_balance 8001 "$NODE_B_ID")
+    BAL_C_FINAL=$(get_balance 8001 "$NODE_C_ID")
+    TREASURY_FINAL=$(curl -s "http://localhost:8001/state" | jq -r '.sviluppo_ui.treasury_balance // 0')
+
+    TOTAL_FINAL=$((BAL_A_FINAL + BAL_B_FINAL + BAL_C_FINAL + TREASURY_FINAL))
+    TOTAL_EXPECTED=3002  # 3000 iniziali + 2 SP dalla tassa
+
+    echo ""
+    echo "Conservazione del Valore:"
+    echo "  Balance Nodo A:     $BAL_A_FINAL SP"
+    echo "  Balance Nodo B:     $BAL_B_FINAL SP"
+    echo "  Balance Nodo C:     $BAL_C_FINAL SP"
+    echo "  Tesoreria Canale:   $TREASURY_FINAL SP"
+    echo "  ─────────────────────────────"
+    echo "  Totale:             $TOTAL_FINAL SP"
+    echo "  Atteso:             $TOTAL_EXPECTED SP"
+
+    if [ "$TOTAL_FINAL" -ne "$TOTAL_EXPECTED" ]; then
+        print_error "❌ CONSERVAZIONE DEL VALORE FALLITA: Totale $TOTAL_FINAL ≠ $TOTAL_EXPECTED"
+        print_error "   C'è una perdita o creazione di valore non prevista!"
+        exit 1
+    fi
+
+    print_success "✅ CONSERVAZIONE DEL VALORE: La somma totale è corretta!"
+    print_success "   Nessun SP perso o creato dal nulla."
+
+    echo ""
+    print_header "TEST METABOLISMO COMPLETATO CON SUCCESSO ✅"
+    echo "Il metabolismo economico della rete funziona correttamente:"
+    echo "  ✓ Balance Nodo A: 900 SP (1000 - 100 pagati)"
+    echo "  ✓ Balance Nodo B: 1098 SP (1000 + 98 ricevuti dopo tassa)"
+    echo "  ✓ Balance Nodo C: 1000 SP (invariato)"
+    echo "  ✓ Tesoreria Canale: 2 SP (2% di tassa raccolta)"
+    echo "  ✓ Conservazione Valore: 3002 SP totali (nessuna perdita)"
+    echo ""
+
+    echo "Pulizia ambiente..."
+    docker-compose down -v --remove-orphans
+}
+
+# --- NUOVO SCENARIO 10: Test Auto-Evoluzione (Proposta Eseguibile) ---
+test_self_evolution_executable_proposal() {
+    print_header "SCENARIO 10: TEST AUTO-EVOLUZIONE (PROPOSTA ESEGUIBILE)"
+
+    echo "Pulizia ambiente Docker..."
+    docker-compose down -v --remove-orphans
+
+    print_header "FASE 1: SETUP - Avvio 2 nodi (A, B)"
+    docker-compose up --build -d rendezvous node-1 node-2
+
+    echo "Attendo convergenza iniziale..."
+    wait_for_condition "curl -s http://localhost:8001/state | jq '.global.nodes | length' | grep -q '^2$'" "Convergenza a 2 nodi" 90
+    print_success "Rete a 2 nodi convergente"
+
+    # Ottieni gli ID dei nodi
+    NODE_A_ID=$(curl -s http://localhost:8001/state | jq -r '.global.nodes | to_entries[] | select(.value.url == "http://node-1:8000") | .key')
+    NODE_B_ID=$(curl -s http://localhost:8001/state | jq -r '.global.nodes | to_entries[] | select(.value.url == "http://node-2:8000") | .key')
+
+    echo "Node IDs:"
+    echo "  Node A (node-1): ${NODE_A_ID:0:16}..."
+    echo "  Node B (node-2): ${NODE_B_ID:0:16}..."
+
+    print_header "FASE 2: VERIFICA CONFIGURAZIONE INIZIALE"
+
+    INITIAL_TASK_REWARD=$(curl -s "http://localhost:8001/state" | jq -r '.global.config.task_completion_reputation_reward // 10')
+    echo "Valore iniziale di task_completion_reputation_reward: $INITIAL_TASK_REWARD"
+
+    [ "$INITIAL_TASK_REWARD" -eq 10 ] && print_success "Configurazione iniziale corretta (10)" || { print_error "Configurazione errata (atteso 10, ricevuto $INITIAL_TASK_REWARD)"; exit 1; }
+
+    print_header "FASE 3: COSTRUZIONE REPUTAZIONE (Nodo A completa un task)"
+
+    echo "Nodo A crea e completa un task per ottenere reputazione..."
+    TASK_REP=$(curl -s -X POST "http://localhost:8001/tasks?channel=sviluppo_ui" \
+        -H "Content-Type: application/json" \
+        -d '{"title":"Task per Reputazione"}' | jq -r '.id')
+
+    sleep 5
+    curl -s -X POST "http://localhost:8001/tasks/$TASK_REP/claim?channel=sviluppo_ui" -d '' > /dev/null
+    sleep 2
+    curl -s -X POST "http://localhost:8001/tasks/$TASK_REP/progress?channel=sviluppo_ui" -d '' > /dev/null
+    sleep 2
+    curl -s -X POST "http://localhost:8001/tasks/$TASK_REP/complete?channel=sviluppo_ui" -d '' > /dev/null
+
+    echo "Attendo propagazione reputazione (25s)..."
+    sleep 25
+
+    REP_A=$(get_reputation 8001 "$NODE_A_ID")
+    echo "Reputazione Nodo A dopo completamento task: $REP_A"
+    [ "$REP_A" -ge 10 ] && print_success "Nodo A ha reputazione sufficiente ($REP_A)" || { print_error "Reputazione insufficiente"; exit 1; }
+
+    print_header "FASE 4: CREAZIONE PROPOSTA CONFIG_CHANGE"
+
+    echo "Nodo A crea una proposta per cambiare task_completion_reputation_reward da 10 a 50..."
+    PROP_CONFIG=$(curl -s -X POST "http://localhost:8001/proposals?channel=global" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "title":"Aumenta ricompensa reputazione task a 50",
+            "description":"Per incentivare maggiormente il completamento dei task",
+            "proposal_type":"config_change",
+            "params":{"key":"task_completion_reputation_reward","value":50}
+        }' | jq -r '.id')
+
+    [ -n "$PROP_CONFIG" ] && print_success "Proposta config_change creata: ${PROP_CONFIG:0:16}..." || { print_error "Creazione proposta fallita"; exit 1; }
+
+    echo "Attendo propagazione proposta (25s)..."
+    sleep 25
+
+    print_header "FASE 5: VOTAZIONE"
+
+    echo "Nodo A vota YES..."
+    curl -s -X POST "http://localhost:8001/proposals/$PROP_CONFIG/vote?channel=global" \
+        -H "Content-Type: application/json" \
+        -d '{"vote":"yes"}' > /dev/null
+
+    sleep 3
+
+    echo "Nodo B vota YES..."
+    curl -s -X POST "http://localhost:8002/proposals/$PROP_CONFIG/vote?channel=global" \
+        -H "Content-Type: application/json" \
+        -d '{"vote":"yes"}' > /dev/null
+
+    echo "Attendo propagazione voti (20s)..."
+    sleep 20
+
+    print_header "FASE 6: CHIUSURA ED ESECUZIONE PROPOSTA"
+
+    echo "Chiusura proposta per calcolare esito ed eseguire..."
+    curl -s -X POST "http://localhost:8001/proposals/$PROP_CONFIG/close?channel=global" -d '' > /dev/null
+
+    echo "Attendo propagazione esecuzione (25s)..."
+    sleep 25
+
+    print_header "FASE 7: ASSERZIONI - VERIFICA ESECUZIONE"
+
+    echo ""
+    echo "Verifica stato proposta su tutti i nodi:"
+    for port in 8001 8002; do
+        STATUS=$(get_proposal_status $port "global" "$PROP_CONFIG")
+        OUTCOME=$(curl -s "http://localhost:$port/state" | jq -r ".global.proposals[\"$PROP_CONFIG\"].outcome // \"unknown\"")
+        echo "  Nodo :$port → Status: $STATUS, Outcome: $OUTCOME"
+    done
+
+    STATUS_FINAL=$(get_proposal_status 8001 "global" "$PROP_CONFIG")
+    OUTCOME_FINAL=$(curl -s "http://localhost:8001/state" | jq -r ".global.proposals[\"$PROP_CONFIG\"].outcome // \"unknown\"")
+
+    # Verifica che la proposta sia executed
+    if [ "$STATUS_FINAL" != "executed" ]; then
+        print_error "❌ PROPOSTA NON ESEGUITA: Status=$STATUS_FINAL (atteso: executed)"
+        exit 1
+    fi
+
+    if [ "$OUTCOME_FINAL" != "approved" ]; then
+        print_error "❌ PROPOSTA NON APPROVATA: Outcome=$OUTCOME_FINAL (atteso: approved)"
+        exit 1
+    fi
+
+    print_success "✅ Proposta eseguita con successo (status=executed, outcome=approved)"
+
+    print_header "FASE 8: VERIFICA CONFIGURAZIONE AGGIORNATA"
+
+    echo ""
+    echo "Verifica nuova configurazione su tutti i nodi:"
+    for port in 8001 8002; do
+        NEW_VALUE=$(curl -s "http://localhost:$port/state" | jq -r '.global.config.task_completion_reputation_reward // 0')
+        echo "  Nodo :$port → task_completion_reputation_reward = $NEW_VALUE"
+
+        if [ "$NEW_VALUE" -ne 50 ]; then
+            print_error "❌ CONFIGURAZIONE NON AGGIORNATA su Nodo :$port (atteso 50, ricevuto $NEW_VALUE)"
+            exit 1
+        fi
+    done
+
+    print_success "✅ Configurazione aggiornata correttamente su tutti i nodi (50)"
+
+    print_header "FASE 9: VERIFICA EFFETTO DELLA NUOVA CONFIGURAZIONE"
+
+    echo ""
+    echo "Verifica che il nuovo valore abbia effetto sui task successivi..."
+
+    # Salva reputazione corrente di B
+    REP_B_BEFORE=$(get_reputation 8001 "$NODE_B_ID")
+    echo "Reputazione Nodo B prima del nuovo task: $REP_B_BEFORE"
+
+    # Nodo B completa un nuovo task
+    echo "Nodo B crea e completa un nuovo task..."
+    TASK_NEW=$(curl -s -X POST "http://localhost:8002/tasks?channel=sviluppo_ui" \
+        -H "Content-Type: application/json" \
+        -d '{"title":"Task con Nuova Config"}' | jq -r '.id')
+
+    sleep 5
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_NEW/claim?channel=sviluppo_ui" -d '' > /dev/null
+    sleep 2
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_NEW/progress?channel=sviluppo_ui" -d '' > /dev/null
+    sleep 2
+    curl -s -X POST "http://localhost:8002/tasks/$TASK_NEW/complete?channel=sviluppo_ui" -d '' > /dev/null
+
+    echo "Attendo propagazione completamento (25s)..."
+    sleep 25
+
+    REP_B_AFTER=$(get_reputation 8001 "$NODE_B_ID")
+    echo "Reputazione Nodo B dopo il nuovo task: $REP_B_AFTER"
+
+    # Calcola incremento
+    REP_INCREMENT=$((REP_B_AFTER - REP_B_BEFORE))
+    echo "Incremento reputazione: +$REP_INCREMENT"
+
+    if [ "$REP_INCREMENT" -ne 50 ]; then
+        print_error "❌ NUOVO VALORE NON APPLICATO: Incremento è $REP_INCREMENT (atteso 50)"
+        print_error "   La configurazione è stata modificata ma non ha effetto!"
+        exit 1
+    fi
+
+    print_success "✅ NUOVO VALORE APPLICATO: Nodo B ha guadagnato +50 reputazione (non +10)"
+    print_success "   La rete si è auto-evoluta con successo!"
+
+    echo ""
+    print_header "TEST AUTO-EVOLUZIONE COMPLETATO CON SUCCESSO ✅"
+    echo "Il sistema di auto-evoluzione funziona correttamente:"
+    echo "  ✓ Proposta config_change creata e votata"
+    echo "  ✓ Proposta eseguita automaticamente (status=executed)"
+    echo "  ✓ Configurazione aggiornata su tutti i nodi (10 → 50)"
+    echo "  ✓ Nuovo valore applicato ai task successivi (+50 rep invece di +10)"
+    echo "  ✓ La rete ha modificato le proprie regole in autonomia"
+    echo ""
+
+    echo "Pulizia ambiente..."
+    docker-compose down -v --remove-orphans
+}
+
 # --- Main Execution ---
 
 # Menu di selezione test
@@ -496,7 +849,9 @@ if [ "$1" == "all" ] || [ -z "$1" ]; then
     
     test_weighted_voting_governance
     test_task_economy_sp_transfer
-    
+    test_channel_metabolism_taxes
+    test_self_evolution_executable_proposal
+
     print_header "🎉 TUTTI I TEST COMPLETATI CON SUCCESSO 🎉"
     echo ""
     echo "Test Base:"
@@ -510,6 +865,8 @@ if [ "$1" == "all" ] || [ -z "$1" ]; then
     echo "  ✓ Voto ponderato basato su reputazione"
     echo "  ✓ Economia task e trasferimento SP"
     echo "  ✓ Determinismo economico (no double-spend)"
+    echo "  ✓ Metabolismo di canale (tasse e tesoreria)"
+    echo "  ✓ Auto-evoluzione (proposte eseguibili)"
     echo ""
     
 elif [ "$1" == "base" ]; then
@@ -523,7 +880,15 @@ elif [ "$1" == "governance" ]; then
 elif [ "$1" == "economy" ]; then
     echo "Esecuzione test economia SP..."
     test_task_economy_sp_transfer
-    
+
+elif [ "$1" == "metabolism" ]; then
+    echo "Esecuzione test metabolismo (tasse e tesoreria)..."
+    test_channel_metabolism_taxes
+
+elif [ "$1" == "evolution" ]; then
+    echo "Esecuzione test auto-evoluzione (proposte eseguibili)..."
+    test_self_evolution_executable_proposal
+
 elif [ "$1" == "help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     echo ""
     echo "Synapse-NG Test Suite"
@@ -532,10 +897,12 @@ elif [ "$1" == "help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     echo "Uso: ./test_suite.sh [opzione]"
     echo ""
     echo "Opzioni:"
-    echo "  all (default)  - Esegue tutti i test (base + economia + governance)"
+    echo "  all (default)  - Esegue tutti i test (base + economia + governance + metabolismo + evoluzione)"
     echo "  base           - Esegue solo i test base (convergenza, WebRTC, PubSub, task)"
     echo "  governance     - Esegue solo il test del voto ponderato"
     echo "  economy        - Esegue solo il test dell'economia SP"
+    echo "  metabolism     - Esegue solo il test del metabolismo (tasse e tesoreria)"
+    echo "  evolution      - Esegue solo il test di auto-evoluzione (proposte eseguibili)"
     echo "  help           - Mostra questo messaggio"
     echo ""
     echo "Esempi:"
@@ -543,6 +910,8 @@ elif [ "$1" == "help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     echo "  ./test_suite.sh base         # Solo test base"
     echo "  ./test_suite.sh governance   # Solo test governance"
     echo "  ./test_suite.sh economy      # Solo test economia"
+    echo "  ./test_suite.sh metabolism   # Solo test metabolismo"
+    echo "  ./test_suite.sh evolution    # Solo test auto-evoluzione"
     echo ""
 else
     echo "Opzione non riconosciuta: $1"

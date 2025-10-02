@@ -1,10 +1,15 @@
-# NOTE: mDNS Discovery (Zeroconf) funziona automaticamente quando i nodi
-# sono sulla stessa rete Docker (default bridge network).
-# Per testare mDNS tra nodi Docker, tutti i nodi devono essere sulla stessa rete.
-# mDNS funziona meglio in ambienti non-Docker (es. nodi su macchine diverse nella stessa LAN).
+# Docker Compose con rete custom per mDNS Discovery
+# Questa configurazione abilita mDNS tra container Docker
 #
-# Per abilitare mDNS tra container Docker, decommentare la sezione 'networks' in fondo
-# e aggiungere 'networks: [synapse-net]' a ogni servizio.
+# Uso:
+#   docker-compose -f docker-compose.mdns.yml up -d
+#
+# Note:
+#   - Tutti i container sono sulla stessa rete bridge custom
+#   - mDNS multicast funziona tra container sulla stessa rete
+#   - Utile per testing locale di discovery automatico
+
+version: '3.8'
 
 services:
   rendezvous:
@@ -12,6 +17,8 @@ services:
       context: ./rendezvous
     ports:
       - "8080:8080"
+    networks:
+      - synapse-net
 
   node-1:
     build: .
@@ -22,11 +29,17 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-1:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui
-      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
+      - INITIAL_BALANCE=1000
+      # mDNS abilitato (default)
+      - DISABLE_MDNS=false
     volumes:
       - ./data/node-1:/app/data
     depends_on:
       - rendezvous
+    networks:
+      - synapse-net
+    # Opzionale: hostname per mDNS più leggibile
+    hostname: synapse-node-1
 
   node-2:
     build: .
@@ -37,11 +50,15 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-2:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
-      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
+      - INITIAL_BALANCE=1000
+      - DISABLE_MDNS=false
     volumes:
       - ./data/node-2:/app/data
     depends_on:
       - rendezvous
+    networks:
+      - synapse-net
+    hostname: synapse-node-2
 
   node-3:
     build: .
@@ -52,11 +69,15 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-3:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
-      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
+      - INITIAL_BALANCE=1000
+      - DISABLE_MDNS=false
     volumes:
       - ./data/node-3:/app/data
     depends_on:
       - rendezvous
+    networks:
+      - synapse-net
+    hostname: synapse-node-3
 
   node-4:
     build: .
@@ -67,21 +88,30 @@ services:
       - RENDEZVOUS_URL=http://rendezvous:8080
       - OWN_URL=http://node-4:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui
-      - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
+      - INITIAL_BALANCE=1000
+      - DISABLE_MDNS=false
     volumes:
       - ./data/node-4:/app/data
     depends_on:
       - rendezvous
+    networks:
+      - synapse-net
+    hostname: synapse-node-4
+
+# Rete bridge custom per mDNS
+# Tutti i container possono fare multicast tra loro
+networks:
+  synapse-net:
+    driver: bridge
+    driver_opts:
+      # Abilita multicast (necessario per mDNS)
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
 
 volumes:
   data-node-1:
   data-node-2:
   data-node-3:
   data-node-4:
-
-# Rete personalizzata per mDNS (opzionale)
-# Decommenta questa sezione e aggiungi 'networks: [synapse-net]' a ogni servizio
-# per abilitare mDNS discovery tra container Docker
-# networks:
-#   synapse-net:
-#     driver: bridge

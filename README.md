@@ -6,7 +6,36 @@ Synapse-NG is a fully decentralized peer-to-peer network that self-organizes lik
 
 ## 🧬 Philosophy
 
-Each node is a sovereign "neuron". The network "lives" through fundamental principles:
+Each node is a sovereign "neuron". The networ## 📚 Documentation
+
+### Getting Started
+- **[Getting Started](docs/GETTING_STARTED.md)** - Quick setup and first steps
+
+### Core Systems
+- **[Complete Architecture](docs/SYNAPSE_COMPLETE_ARCHITECTURE.md)** - Full system architecture overview
+- **[Governance System](docs/GOVERNANCE_SYSTEM.md)** - Two-tier governance with weighted voting and ZKP anonymous voting
+- **[Autonomous Organism](docs/AUTONOMOUS_ORGANISM.md)** - Self-sustaining network with treasury, taxes, and self-evolution
+- **[Schema Validation](docs/SCHEMA_VALIDATION.md)** - Type-safe data structures with automatic validation
+- **[Auction System](docs/AUCTION_SYSTEM.md)** - Market-based task allocation with competitive bidding
+- **[Network Operations](docs/NETWORK_OPERATIONS.md)** - Self-evolution through consensus (split/merge channels)
+
+### Advanced Features
+- **[Self-Upgrade System](docs/SELF_UPGRADE_SYSTEM.md)** - Autonomous code evolution with WASM sandboxing
+- **[Phase 7: Network Singularity](docs/PHASE_7_NETWORK_SINGULARITY.md)** - AI-powered autonomous code generation
+- **[AI Agent](docs/AI_AGENT.md)** - Intelligent agent capabilities
+- **[Collaborative Teams](docs/COLLABORATIVE_TEAMS.md)** - Temporary squads/guilds for complex tasks
+
+### Testing & Deployment
+- **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive test suite documentation
+- **[API Examples](docs/API_EXAMPLES.md)** - Manual API testing examples
+- **[Production Deployment](docs/PRODUCTION_DEPLOYMENT.md)** - Production deployment guide
+
+### Development
+- **[Commit Message Guidelines](docs/COMMIT_MESSAGE.md)** - Commit message conventions
+
+---
+
+**Documentation Structure**: All documentation is now in English and organized into logical categories. The consolidation reduced the documentation from 28 files to 16 files while maintaining comprehensive coverage.through fundamental principles:
 
 - **Sovereign Identity**: Each node possesses its own cryptographic identity (Ed25519), immutable and unforgeable.
 - **P2P Communication**: Direct WebRTC connections between peers, without intermediaries.
@@ -76,6 +105,10 @@ Synapse-NG implements a three-layer communication architecture:
 - ✅ **Complete lifecycle**: open → claimed → in_progress → completed
 - ✅ **CRDT propagation**: Guaranteed convergence via topic-based PubSub
 - ✅ **Transition validation**: Only at API endpoints
+- ✅ **Schema validation**: Type-safe tasks with automatic validation ✨ **NEW**
+- ✅ **Auction system**: Market-based task allocation with bid competition 🔨 **NEW**
+- ✅ **Smart scoring**: Weighted algorithm (cost 40%, reputation 40%, time 20%) 🔨 **NEW**
+- ✅ **Auto-close**: Automatic auction finalization at deadline 🔨 **NEW**
 - ⚠️ **Subscription required**: Nodes must subscribe to channels to receive updates
 
 ### **Governance**
@@ -84,6 +117,9 @@ Synapse-NG implements a three-layer communication architecture:
 - ✅ **Distributed voting**: Votes propagated via PubSub
 - ✅ **Dynamic reputation**: Based on contributions (+10 tasks, +1 vote)
 - ✅ **Meritocracy**: High-reputation nodes have more influence in decisions
+- ✅ **Two-tier governance**: Validator set + community voting
+- ✅ **Network operations**: Self-modification via consensus (split/merge channels)
+- ✅ **Executive system**: Ratified commands executed deterministically on all nodes
 
 ## 📦 Installation
 
@@ -229,6 +265,48 @@ POST /proposals/{proposal_id}/close?channel=CHANNEL_ID
 
 # Get proposal details (includes vote weights)
 GET /proposals/{proposal_id}/details?channel=CHANNEL_ID
+
+# Ratify network_operation proposal (validators only)
+POST /governance/ratify/{proposal_id}?channel=CHANNEL_ID
+```
+
+### **Network Operations (Self-Evolution)**
+
+```bash
+# Create network operation proposal (split channel)
+POST /proposals?channel=global
+Content-Type: application/json
+{
+  "title": "Split general channel",
+  "proposal_type": "network_operation",
+  "params": {
+    "operation": "split_channel",
+    "target_channel": "general",
+    "new_channels": ["backend", "frontend"],
+    "split_logic": "by_tag",
+    "split_params": {
+      "backend": ["api", "database"],
+      "frontend": ["ui", "ux"]
+    }
+  }
+}
+
+# Create network operation proposal (merge channels)
+POST /proposals?channel=global
+Content-Type: application/json
+{
+  "title": "Merge channels",
+  "proposal_type": "network_operation",
+  "params": {
+    "operation": "merge_channels",
+    "source_channels": ["backend", "frontend"],
+    "target_channel": "development"
+  }
+}
+
+# Check execution log
+GET /state
+# Look at: .global.execution_log
 ```
 
 ### **P2P Bootstrap**
@@ -251,10 +329,10 @@ POST /p2p/signal/receive
 
 ### Complete Test Suite
 
-Tests convergence, WebRTC, PubSub, task lifecycle, reputation, economy, and governance.
+Tests convergence, WebRTC, PubSub, task lifecycle, reputation, economy, governance, and network operations.
 
 ```bash
-# All tests (base + economy + governance)
+# All tests (base + economy + governance + operations)
 ./test_suite.sh
 
 # Base tests only
@@ -265,6 +343,12 @@ Tests convergence, WebRTC, PubSub, task lifecycle, reputation, economy, and gove
 
 # Economy tests only (Synapse Points)
 ./test_suite.sh economy
+
+# Network operations test (self-evolution)
+./test_network_operations.sh
+
+# Schema validation test (type safety)
+./test_schema_validation.sh
 
 # Show options
 ./test_suite.sh help
@@ -283,6 +367,12 @@ Tests convergence, WebRTC, PubSub, task lifecycle, reputation, economy, and gove
 **Economy and Governance Tests (Scenarios 7-8):**
 7. ✅ **Weighted Voting**: Verifies that high-reputation nodes have more influence (weight = 1 + log₂(rep + 1))
 8. ✅ **SP Economy**: Verifies deterministic transfer of Synapse Points (task creation with reward, SP freezing, transfer on completion)
+
+**Network Operations Tests (Scenario 9):**
+9. ✅ **Self-Evolution**: Complete flow of network_operation proposal → vote → ratify → execute (split/merge channels)
+
+**Schema Validation Tests (Scenario 10):**
+10. ✅ **Type Safety**: Schema validation at creation time and gossip time, rejection of invalid data ✨ **NEW**
 
 **📚 Test Documentation:**
 - `TEST_ECONOMIA_GOVERNANCE.md` - Complete documentation
@@ -338,6 +428,9 @@ synapse-ng/
 ├── test_suite.sh                  # Complete test suite
 ├── test_webrtc.sh                 # WebRTC/PubSub tests
 ├── test_p2p.sh                    # Pure P2P tests
+├── test_network_operations.sh     # Network self-evolution tests
+├── test_schema_validation.sh      # Schema validation tests
+├── test_auction.sh                # Auction system tests 🔨 **NEW**
 └── README.md                      # This file
 ```
 
@@ -449,15 +542,28 @@ Result:
 Meritocracy prevails: the most experienced node has more influence!
 ```
 
+## � Documentation
+
+For detailed documentation on specific topics, see:
+
+- **[Governance Architecture](GOVERNANCE_ARCHITECTURE.md)** - Two-tier governance system with CRDT voting and Raft consensus
 ## 🔮 Future Roadmap
 
-- [ ] **mDNS Discovery**: Local discovery without bootstrap
-- [ ] **DHT**: Distributed Hash Table for peer lookup
+- [x] **Two-Tier Governance**: Validator set + Raft consensus
+- [x] **Reputation System**: Merit-based network participation
+- [x] **Economic System**: Synapse Points with treasury
+- [x] **Network Operations**: Self-evolution via split/merge channels
+- [x] **Executive System**: Deterministic command execution across all nodes
+- [x] **Schema Validation**: Type-safe data structures with automatic validation
+- [x] **Auction System**: Market-based task allocation with competitive bidding
+- [x] **Self-Upgrade System**: Autonomous code evolution with WASM sandboxing
+- [x] **AI-Powered Evolution**: Network generates and proposes code upgrades
+- [ ] **Dynamic Sharding**: Automatic channel balancing via network operations
+- [ ] **Complete Raft Implementation**: Full leader election and log replication
+- [ ] **Operation Rollback**: Automatic rollback on execution failure
 - [ ] **E2E Encryption**: Payload encryption beyond WebRTC
-- [ ] **NAT Traversal**: Integrated STUN/TURN
+- [ ] **DHT**: Distributed Hash Table for peer lookup
 - [ ] **Mobile Nodes**: Support for mobile/intermittent nodes
-- [ ] **Dynamic Sharding**: Automatic channel balancing
-- [ ] **Advanced Consensus**: Raft/PBFT for critical decisions
 
 ## 🤝 Contributing
 
