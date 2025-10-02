@@ -87,6 +87,9 @@ class CreateProposalPayload(BaseModel):
     description: str = ""
     proposal_type: str = "generic"
 
+class VotePayload(BaseModel):
+    vote: Literal["yes", "no"]
+
 state_lock = asyncio.Lock()
 
 subscribed_channels: Set[str] = {"global"}.union(set(c.strip() for c in SUBSCRIBED_CHANNELS_ENV.split(",") if c.strip()))
