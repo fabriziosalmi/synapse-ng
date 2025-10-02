@@ -6,7 +6,9 @@ Synapse-NG is a fully decentralized peer-to-peer network that self-organizes lik
 
 ## 🧬 Philosophy
 
-Each node is a sovereign "neuron". The networ## 📚 Documentation
+Each node is a sovereign "neuron" that collaborates to form a collective consciousness, make decisions, and accomplish tasks.
+
+## 📚 Documentation
 
 ### Getting Started
 - **[Getting Started](docs/GETTING_STARTED.md)** - Quick setup and first steps
