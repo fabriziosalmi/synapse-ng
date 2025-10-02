@@ -85,18 +85,42 @@ class CreateTaskPayload(BaseModel):
 class CreateProposalPayload(BaseModel):
     title: str
     description: str = ""
-    proposal_type: str = "generic"
+    proposal_type: str = "generic"  # "generic", "config_change"
+    params: dict = {}  # For config_change: {"key": "value"}
 
 class VotePayload(BaseModel):
     vote: Literal["yes", "no"]
 
 state_lock = asyncio.Lock()
 
+# Default network configuration (can be modified via governance)
+DEFAULT_CONFIG = {
+    "task_completion_reputation_reward": 10,
+    "proposal_vote_reputation_reward": 1,
+    "transaction_tax_percentage": 0.02,  # 2% tax on task rewards
+    "vote_weight_log_base": 2,
+    "initial_balance_sp": 1000,
+    "treasury_initial_balance": 0
+}
+
 subscribed_channels: Set[str] = {"global"}.union(set(c.strip() for c in SUBSCRIBED_CHANNELS_ENV.split(",") if c.strip()))
-network_state = {"global": {"nodes": {}, "proposals": {}}}
+network_state = {
+    "global": {
+        "nodes": {},
+        "proposals": {},
+        "config": DEFAULT_CONFIG.copy(),
+        "config_version": 1,
+        "config_updated_at": datetime.now(timezone.utc).isoformat()
+    }
+}
 for channel in subscribed_channels:
     if channel not in network_state:
-        network_state[channel] = {"participants": {NODE_ID}, "tasks": {}, "proposals": {}}
+        network_state[channel] = {
+            "participants": {NODE_ID},
+            "tasks": {},
+            "proposals": {},
+            "treasury_balance": 0
+        }
 known_peers = set()
 
 network_state["global"]["nodes"][NODE_ID] = {
@@ -121,14 +145,114 @@ async def get_state():
         state_copy = json.loads(json.dumps(network_state, default=list))
     reputations = calculate_reputations(state_copy)
     balances = calculate_balances(state_copy)
+    treasuries = calculate_treasuries(state_copy)
+
+    # Add calculated values to nodes
     for node_id, node_data in state_copy["global"]["nodes"].items():
         node_data["reputation"] = reputations.get(node_id, 0)
         node_data["balance"] = balances.get(node_id, 0)
+
+    # Add calculated treasury balances to channels
+    for channel_id in state_copy:
+        if channel_id != "global" and channel_id in treasuries:
+            state_copy[channel_id]["treasury_balance"] = treasuries[channel_id]
+
     return state_copy
 
 @app.get("/channels", response_model=List[str])
 async def get_subscribed_channels():
     return list(subscribed_channels)
+
+@app.get("/treasury/{channel_id}")
+async def get_treasury_balance(channel_id: str):
+    """
+    Ottiene il balance della tesoreria di un canale specifico.
+    """
+    if channel_id == "global":
+        raise HTTPException(400, "Il canale 'global' non ha una tesoreria")
+
+    async with state_lock:
+        state_copy = json.loads(json.dumps(network_state, default=list))
+
+    treasuries = calculate_treasuries(state_copy)
+
+    if channel_id not in treasuries:
+        raise HTTPException(404, f"Canale '{channel_id}' non trovato")
+
+    return {
+        "channel_id": channel_id,
+        "treasury_balance": treasuries[channel_id]
+    }
+
+@app.get("/treasuries")
+async def get_all_treasuries():
+    """
+    Ottiene i balance di tutte le tesorerie dei canali.
+    """
+    async with state_lock:
+        state_copy = json.loads(json.dumps(network_state, default=list))
+
+    treasuries = calculate_treasuries(state_copy)
+
+    return {
+        "treasuries": [
+            {"channel_id": channel_id, "balance": balance}
+            for channel_id, balance in treasuries.items()
+        ]
+    }
+
+@app.get("/config")
+async def get_config():
+    """
+    Ottiene la configurazione corrente della rete.
+    """
+    async with state_lock:
+        config = network_state["global"]["config"].copy()
+        config_version = network_state["global"].get("config_version", 1)
+        config_updated_at = network_state["global"].get("config_updated_at", "")
+
+    return {
+        "config": config,
+        "version": config_version,
+        "updated_at": config_updated_at
+    }
+
+@app.get("/config/history")
+async def get_config_history():
+    """
+    Ottiene la storia delle modifiche alla configurazione tramite governance.
+    """
+    async with state_lock:
+        state_copy = json.loads(json.dumps(network_state, default=list))
+
+    # Trova tutte le proposte config_change eseguite
+    config_changes = []
+
+    for channel_id, channel_data in state_copy.items():
+        if channel_id == "global":
+            for proposal_id, proposal in channel_data.get("proposals", {}).items():
+                if (proposal.get("proposal_type") == "config_change" and
+                    proposal.get("status") == "executed" and
+                    proposal.get("execution_result", {}).get("success")):
+
+                    exec_result = proposal["execution_result"]
+                    config_changes.append({
+                        "proposal_id": proposal_id,
+                        "title": proposal.get("title", ""),
+                        "key": exec_result.get("key"),
+                        "old_value": exec_result.get("old_value"),
+                        "new_value": exec_result.get("new_value"),
+                        "executed_at": exec_result.get("executed_at"),
+                        "proposer": proposal.get("proposer")
+                    })
+
+    # Ordina per data di esecuzione
+    config_changes.sort(key=lambda x: x.get("executed_at", ""), reverse=True)
+
+    return {
+        "changes": config_changes,
+        "total": len(config_changes)
+    }
 
 @app.get("/webrtc/connections")
 async def get_webrtc_connections():
@@ -314,42 +438,65 @@ async def receive_p2p_signaling(msg: dict):
 
 # --- Endpoint Task ---
 @app.post("/tasks", status_code=201)
-async def create_task(payload: CreateTaskPayload, channel: str):
+async def create_task(payload: CreateTaskPayload, channel: str, funded_by: str = "user"):
     """
     Crea un nuovo task con ricompensa opzionale in Synapse Points.
 
     Se reward > 0:
-    - Verifica che il creator abbia balance sufficiente
-    - La reward viene "congelata" (sottratta dal balance del creator)
-    - Quando il task viene completato, la reward va all'assignee
+    - funded_by="user": Verifica che il creator abbia balance sufficiente
+    - funded_by="treasury": Verifica che la tesoreria del canale abbia balance sufficiente
+    - La reward viene "congelata" (sottratta dal balance del creator o treasury)
+    - Quando il task viene completato, la reward va all'assignee (meno la tassa)
     """
-    if channel == "global" or channel not in subscribed_channels:
-        raise HTTPException(400, "Canale non valido o non sottoscritto.")
+    if channel not in subscribed_channels:
+        raise HTTPException(400, "Canale non sottoscritto.")
+
+    # Tasks cannot be created on global channel (only proposals allowed)
+    if channel == "global":
+        raise HTTPException(400, "I task non possono essere creati sul canale 'global'. Usa un canale specifico.")
 
     # Valida reward se specificato
     if payload.reward < 0:
         raise HTTPException(400, "La reward non può essere negativa")
 
+    # Determina il creator
+    if funded_by == "treasury":
+        creator = f"channel:{channel}"
+    elif funded_by == "user":
+        creator = NODE_ID
+    else:
+        raise HTTPException(400, "funded_by deve essere 'user' o 'treasury'")
+
     if payload.reward > 0:
-        # Calcola balance corrente del creator
+        # Calcola balance corrente
         async with state_lock:
             state_copy = json.loads(json.dumps(network_state, default=list))
-        balances = calculate_balances(state_copy)
-        creator_balance = balances.get(NODE_ID, 0)
 
-        if creator_balance < payload.reward:
-            raise HTTPException(400, f"Balance insufficiente. Hai {creator_balance} SP, richiesti {payload.reward} SP")
+        if funded_by == "treasury":
+            # Verifica balance della tesoreria
+            treasuries = calculate_treasuries(state_copy)
+            treasury_balance = treasuries.get(channel, 0)
+
+            if treasury_balance < payload.reward:
+                raise HTTPException(400, f"Tesoreria insufficiente. Canale '{channel}' ha {treasury_balance} SP, richiesti {payload.reward} SP")
+        else:
+            # Verifica balance del creator
+            balances = calculate_balances(state_copy)
+            creator_balance = balances.get(NODE_ID, 0)
+
+            if creator_balance < payload.reward:
+                raise HTTPException(400, f"Balance insufficiente. Hai {creator_balance} SP, richiesti {payload.reward} SP")
 
     task_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     new_task = {
         "id": task_id,
-        "creator": NODE_ID,  # Nuovo campo: chi ha creato il task
+        "creator": creator,  # Può essere NODE_ID o "channel:channel_id"
         "owner": NODE_ID,    # Manteniamo per compatibilità
         "title": payload.title,
         "status": "open",
         "assignee": None,
-        "reward": payload.reward,  # Nuovo campo: ricompensa in SP
+        "reward": payload.reward,
         "created_at": now,
         "updated_at": now,
         "is_deleted": False
@@ -359,7 +506,10 @@ async def create_task(payload: CreateTaskPayload, channel: str):
         network_state[channel]["tasks"][task_id] = new_task
 
     if payload.reward > 0:
-        logging.info(f"💰 Task '{payload.title}' creato con reward {payload.reward} SP (balance dopo: {creator_balance - payload.reward} SP)")
+        if funded_by == "treasury":
+            logging.info(f"🏛️ Task '{payload.title}' finanziato dalla tesoreria con reward {payload.reward} SP")
+        else:
+            logging.info(f"💰 Task '{payload.title}' creato con reward {payload.reward} SP")
     else:
         logging.info(f"📋 Task '{payload.title}' creato senza reward")
 
@@ -514,6 +664,47 @@ async def close_proposal(proposal_id: str, channel: str):
         proposal["updated_at"] = datetime.now(timezone.utc).isoformat()
         proposal["outcome"] = outcome["outcome"]  # Salva solo la stringa "approved" o "rejected"
         proposal["vote_details"] = outcome  # Salva i dettagli completi in un campo separato
+
+        # Se approvata e di tipo config_change, esegui la modifica
+        if outcome["outcome"] == "approved" and proposal.get("proposal_type") == "config_change":
+            params = proposal.get("params", {})
+            key = params.get("key")
+            value = params.get("value")
+
+            # Valida che la chiave esista nella config
+            if key and key in network_state["global"]["config"]:
+                old_value = network_state["global"]["config"][key]
+
+                # Valida che il tipo sia corretto
+                if type(value) == type(old_value):
+                    # Applica la modifica
+                    network_state["global"]["config"][key] = value
+                    network_state["global"]["config_version"] += 1
+                    network_state["global"]["config_updated_at"] = datetime.now(timezone.utc).isoformat()
+
+                    # Aggiorna proposta con risultato esecuzione
+                    proposal["status"] = "executed"
+                    proposal["execution_result"] = {
+                        "success": True,
+                        "key": key,
+                        "old_value": old_value,
+                        "new_value": value,
+                        "executed_at": datetime.now(timezone.utc).isoformat()
+                    }
+
+                    logging.info(f"🧬 Config auto-eseguita: {key} cambiato da {old_value} a {value} (proposta {proposal_id[:8]}...)")
+                else:
+                    proposal["execution_result"] = {
+                        "success": False,
+                        "error": f"Tipo non valido: atteso {type(old_value).__name__}, ricevuto {type(value).__name__}"
+                    }
+                    logging.warning(f"⚠️  Esecuzione config fallita: tipo non valido per {key}")
+            else:
+                proposal["execution_result"] = {
+                    "success": False,
+                    "error": f"Chiave '{key}' non trovata nella configurazione"
+                }
+                logging.warning(f"⚠️  Esecuzione config fallita: chiave '{key}' non valida")
 
     logging.info(f"🏛️  Proposta {proposal_id[:8]}... chiusa: {outcome['outcome']} (yes: {outcome['yes_weight']}, no: {outcome['no_weight']})")
     return proposal
@@ -718,12 +909,9 @@ async def pubsub_gossip_loop():
 
     while True:
         try:
-            # Pubblica lo stato su ogni canale sottoscritto
+            # Pubblica lo stato su ogni canale sottoscritto (incluso global per governance)
             for channel_id in subscribed_channels:
-                if channel_id == "global":
-                    continue  # Il global viene gestito diversamente
-
-                # Topic formato: "channel:sviluppo_ui:state"
+                # Topic formato: "channel:global:state" o "channel:sviluppo_ui:state"
                 topic = f"channel:{channel_id}:state"
 
                 # Ottieni lo stato del canale
@@ -848,16 +1036,20 @@ async def network_maintenance_loop():
 
 def calculate_reputations(full_state: dict) -> Dict[str, int]:
     """Calcola la reputazione di ogni nodo basata su task completati e voti."""
+    config = full_state.get("global", {}).get("config", DEFAULT_CONFIG)
+    task_reward = config.get("task_completion_reputation_reward", 10)
+    vote_reward = config.get("proposal_vote_reputation_reward", 1)
+
     reputations = {node_id: 0 for node_id in full_state.get("global", {}).get("nodes", {})}
     for channel_id, channel_data in full_state.items():
         if channel_id != "global":
             for task in channel_data.get("tasks", {}).values():
                 if task.get("status") == "completed" and task.get("assignee") in reputations:
-                    reputations[task["assignee"]] += 10
+                    reputations[task["assignee"]] += task_reward
         for prop in channel_data.get("proposals", {}).values():
             for voter_id in prop.get("votes", {}):
                 if voter_id in reputations:
-                    reputations[voter_id] += 1
+                    reputations[voter_id] += vote_reward
     return reputations
 
 def calculate_balances(full_state: dict) -> Dict[str, int]:
@@ -865,16 +1057,19 @@ def calculate_balances(full_state: dict) -> Dict[str, int]:
     Calcola il balance SP (Synapse Points) di ogni nodo.
 
     Il balance è calcolato localmente da ogni nodo tracciando tutte le transazioni implicite:
-    - Ogni nodo parte con un balance iniziale (default 1000 SP, configurabile via INITIAL_BALANCE)
+    - Ogni nodo parte con un balance iniziale (default 1000 SP, configurabile via config)
     - Quando un task con reward viene creato, il creator perde reward SP (congelati)
-    - Quando un task viene completato, l'assignee guadagna reward SP
+    - Quando un task viene completato:
+        * L'assignee guadagna reward SP (meno la tassa)
+        * La tesoreria del canale guadagna la tassa (es. 2% del reward)
     - Il calcolo è deterministico: tutti i nodi arrivano allo stesso risultato
 
     Returns:
         Dict[node_id, balance_sp]
     """
-    # Leggi INITIAL_BALANCE da variabile d'ambiente (default 1000)
-    INITIAL_BALANCE = int(os.getenv("INITIAL_BALANCE", "1000"))
+    config = full_state.get("global", {}).get("config", DEFAULT_CONFIG)
+    INITIAL_BALANCE = config.get("initial_balance_sp", 1000)
+    TAX_RATE = config.get("transaction_tax_percentage", 0.02)
 
     balances = {node_id: INITIAL_BALANCE for node_id in full_state.get("global", {}).get("nodes", {})}
 
@@ -892,14 +1087,73 @@ def calculate_balances(full_state: dict) -> Dict[str, int]:
                 status = task.get("status")
 
                 # Il creator ha speso reward SP per creare il task (sempre, appena creato)
+                # Se il creator è il canale stesso (task finanziato dalla tesoreria),
+                # il costo viene gestito nella calculate_treasuries
                 if creator and creator in balances:
                     balances[creator] -= reward
 
-                # Se il task è completato, l'assignee guadagna reward SP
+                # Se il task è completato, l'assignee guadagna reward SP (meno la tassa)
                 if status == "completed" and assignee and assignee in balances:
-                    balances[assignee] += reward
+                    tax_amount = int(reward * TAX_RATE)
+                    net_reward = reward - tax_amount
+                    balances[assignee] += net_reward
+                    # La tassa va alla tesoreria (calcolata in calculate_treasuries)
 
     return balances
+
+def calculate_treasuries(full_state: dict) -> Dict[str, int]:
+    """
+    Calcola il balance della tesoreria di ogni canale.
+
+    La tesoreria viene finanziata da:
+    - Tasse sui task completati (es. 2% del reward)
+    - Balance iniziale configurabile
+
+    La tesoreria viene spesa per:
+    - Task creati dal canale stesso (channel-owned tasks)
+
+    Returns:
+        Dict[channel_id, treasury_balance]
+    """
+    config = full_state.get("global", {}).get("config", DEFAULT_CONFIG)
+    INITIAL_TREASURY = config.get("treasury_initial_balance", 0)
+    TAX_RATE = config.get("transaction_tax_percentage", 0.02)
+
+    treasuries = {}
+
+    for channel_id, channel_data in full_state.items():
+        if channel_id == "global":
+            continue
+
+        treasury = INITIAL_TREASURY
+
+        for task in channel_data.get("tasks", {}).values():
+            reward = task.get("reward", 0)
+
+            if reward > 0:
+                creator = task.get("creator")
+                status = task.get("status")
+
+                # Se il task è stato creato dal canale (treasury-funded)
+                if creator == f"channel:{channel_id}":
+                    # La tesoreria paga il reward
+                    treasury -= reward
+
+                    # Se completato, la tassa torna alla tesoreria
+                    # (effettivamente solo net_reward esce dalla tesoreria)
+                    if status == "completed":
+                        tax_amount = int(reward * TAX_RATE)
+                        treasury += tax_amount
+
+                # Se il task è di un utente normale e completato
+                elif status == "completed" and creator:
+                    # La tesoreria riceve la tassa
+                    tax_amount = int(reward * TAX_RATE)
+                    treasury += tax_amount
+
+        treasuries[channel_id] = treasury
+
+    return treasuries
 
 def calculate_vote_weight(reputation: int) -> float:
     """
@@ -999,11 +1253,10 @@ async def on_startup():
     pubsub_manager.set_message_callback(handle_pubsub_message)
     pubsub_manager.set_peer_discovered_callback(handle_peer_discovered)
 
-    # Sottoscrivi ai topic PubSub per ogni canale
+    # Sottoscrivi ai topic PubSub per ogni canale (incluso global per governance)
     for channel_id in subscribed_channels:
-        if channel_id != "global":
-            topic = f"channel:{channel_id}:state"
-            pubsub_manager.subscribe_topic(topic)
+        topic = f"channel:{channel_id}:state"
+        pubsub_manager.subscribe_topic(topic)
 
     # Sottoscrivi al discovery globale
     pubsub_manager.subscribe_topic("global-discovery")
