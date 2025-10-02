@@ -80,8 +80,10 @@ Synapse-NG implementa un'architettura di comunicazione a tre livelli:
 
 ### **Governance**
 - ✅ **Sistema di proposte**: Ogni nodo può proporre cambiamenti
-- ✅ **Voting distribuito**: Voti propagati via gossip
+- ✅ **Voto ponderato**: Peso basato su reputazione (weight = 1 + log₂(reputation + 1))
+- ✅ **Voting distribuito**: Voti propagati via PubSub
 - ✅ **Reputazione dinamica**: Basata su contributi (+10 task, +1 voto)
+- ✅ **Meritocrazia**: Nodi con alta reputazione hanno più influenza nelle decisioni
 
 ## 📦 Installazione
 
@@ -207,6 +209,26 @@ POST /tasks/{task_id}/complete?channel=CHANNEL_ID
 
 # Elimina
 DELETE /tasks/{task_id}?channel=CHANNEL_ID
+```
+
+### **Governance**
+
+```bash
+# Crea proposta
+POST /proposals?channel=CHANNEL_ID
+Content-Type: application/json
+{"title": "Proposal Title", "description": "Details", "proposal_type": "generic"}
+
+# Vota su proposta
+POST /proposals/{proposal_id}/vote?channel=CHANNEL_ID
+Content-Type: application/json
+{"vote": "yes"}  # o "no"
+
+# Chiudi proposta e calcola esito
+POST /proposals/{proposal_id}/close?channel=CHANNEL_ID
+
+# Dettagli proposta (include pesi voti)
+GET /proposals/{proposal_id}/details?channel=CHANNEL_ID
 ```
 
 ### **Bootstrap P2P**
@@ -370,14 +392,15 @@ if incoming_task["updated_at"] > local_task["updated_at"]:
 - **Nel gossip**: Timestamp è fonte di verità
 - **Convergenza**: Garantita matematicamente (CRDT)
 
-### Sistema di Reputazione
+### Sistema di Reputazione e Voto Ponderato
 
-```
-Azioni che incrementano reputazione:
+**Calcolo Reputazione:**
+```python
+# Azioni che incrementano reputazione
 - Completamento task: +10
 - Voto su proposta: +1
 
-Calcolo (app/main.py:606-613):
+# Calcolo (app/main.py:846-858)
 for task in channel.tasks:
     if task.status == "completed":
         reputation[task.assignee] += 10
@@ -385,6 +408,45 @@ for task in channel.tasks:
 for proposal in channel.proposals:
     for voter_id in proposal.votes:
         reputation[voter_id] += 1
+```
+
+**Voto Ponderato:**
+```python
+# Peso del voto basato su reputazione (app/main.py:914-915)
+def calculate_vote_weight(reputation: int) -> float:
+    return 1.0 + math.log2(reputation + 1)
+
+# Esempi:
+# Reputazione 0 → Peso 1.0
+# Reputazione 1 → Peso 2.0
+# Reputazione 20 → Peso 5.4
+# Reputazione 100 → Peso 7.7
+
+# Esito proposta (app/main.py:966-969)
+if yes_weight > no_weight:
+    outcome = "approved"
+else:
+    outcome = "rejected"
+```
+
+**Esempio pratico:**
+```
+Scenario: Proposta con 3 nodi
+- Node A: reputazione 20 (2 task completati) → peso voto ~5.4
+- Node B: reputazione 1 (1 voto) → peso voto ~2.0
+- Node C: reputazione 0 → peso voto 1.0
+
+Votazione:
+- Node A vota NO → peso 5.4
+- Node B vota YES → peso 2.0
+- Node C vota YES → peso 1.0
+
+Risultato:
+- YES totale: 3.0
+- NO totale: 5.4
+- Esito: REJECTED ✅
+
+La meritocrazia prevale: il nodo più esperto ha più influenza!
 ```
 
 ## 🔮 Roadmap Futura
