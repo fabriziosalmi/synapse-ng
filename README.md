@@ -1,40 +1,40 @@
 # Synapse-NG (Next Generation)
 
-**Un organismo digitale decentralizzato, scalabile e intelligente.**
+**A decentralized, scalable, and intelligent digital organism.**
 
-Synapse-NG è una rete peer-to-peer completamente decentralizzata che si auto-organizza come un organismo vivente. Non esiste autorità centrale, nessun server obbligatorio, nessun leader. Ogni nodo è un agente autonomo che collabora per formare una coscienza collettiva, prendere decisioni e portare a termine compiti.
+Synapse-NG is a fully decentralized peer-to-peer network that self-organizes like a living organism. There is no central authority, no mandatory server, no leader. Each node is an autonomous agent that collaborates to form a collective consciousness, make decisions, and accomplish tasks.
 
-## 🧬 Filosofia
+## 🧬 Philosophy
 
-Ogni nodo è un "neurone" sovrano. La rete "vive" attraverso principi fondamentali:
+Each node is a sovereign "neuron". The network "lives" through fundamental principles:
 
-- **Identità Sovrana**: Ogni nodo possiede la propria identità crittografica (Ed25519), immutabile e non falsificabile.
-- **Comunicazione P2P**: Connessioni WebRTC dirette tra peer, senza intermediari.
-- **Gossip Intelligente**: Protocollo SynapseSub topic-based per sincronizzare solo ciò che serve.
-- **Consenso senza Conflitti (CRDT)**: Lo stato condiviso converge matematicamente allo stesso risultato su tutti i nodi.
-- **Bootstrap Decentralizzato**: Nessun server centrale obbligatorio, bootstrap da peer esistenti.
-- **Intelligenza Collettiva**: Sistema di proposte, voti e reputazione distribuito.
+- **Sovereign Identity**: Each node possesses its own cryptographic identity (Ed25519), immutable and unforgeable.
+- **P2P Communication**: Direct WebRTC connections between peers, without intermediaries.
+- **Intelligent Gossip**: Topic-based SynapseSub protocol to synchronize only what's needed.
+- **Conflict-Free Consensus (CRDT)**: Shared state mathematically converges to the same result on all nodes.
+- **Decentralized Bootstrap**: No mandatory central server, bootstrap from existing peers.
+- **Collective Intelligence**: Distributed proposal, voting, and reputation system.
 
-## ✨ Architettura SynapseComms v2.0
+## ✨ SynapseComms v2.0 Architecture
 
-Synapse-NG implementa un'architettura di comunicazione a tre livelli:
+Synapse-NG implements a three-layer communication architecture:
 
-### **Livello 1: WebRTC Transport Layer**
-- Connessioni P2P dirette tra nodi
-- `RTCDataChannel` per comunicazione bidirezionale
-- Supporto signaling sia centralizzato che P2P
+### **Layer 1: WebRTC Transport Layer**
+- Direct P2P connections between nodes
+- `RTCDataChannel` for bidirectional communication
+- Support for both centralized and P2P signaling
 
-### **Livello 2: SynapseSub Protocol**
-- PubSub topic-based su WebRTC
-- Mesh di peer per ogni topic
-- Deduplica automatica messaggi
-- Forward intelligente basato su interesse
+### **Layer 2: SynapseSub Protocol**
+- Topic-based PubSub over WebRTC
+- Peer mesh for each topic
+- Automatic message deduplication
+- Intelligent forwarding based on interest
 
-### **Livello 3: Application Layer**
-- Canali tematici (sharding)
-- Task management distribuito
-- Governance e voting
-- Sistema di reputazione
+### **Layer 3: Application Layer**
+- Thematic channels (sharding)
+- Distributed task management
+- Governance and voting
+- Reputation system
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -59,269 +59,269 @@ Synapse-NG implementa un'architettura di comunicazione a tre livelli:
 
 ## 🚀 Features
 
-### **Comunicazione**
-- ✅ **WebRTC P2P**: Connessioni dirette tra nodi, bassa latenza
-- ✅ **SynapseSub**: Protocollo PubSub ottimizzato per mesh network
-- ✅ **Topic-based routing**: Solo i dati rilevanti vengono trasmessi
-- ✅ **Deduplica automatica**: Cache di messaggi visti
+### **Communication**
+- ✅ **WebRTC P2P**: Direct connections between nodes, low latency
+- ✅ **SynapseSub**: PubSub protocol optimized for mesh networks
+- ✅ **Topic-based routing**: Only relevant data is transmitted
+- ✅ **Automatic deduplication**: Cache of seen messages
 
-### **Decentralizzazione**
-- ✅ **Bootstrap P2P**: Handshake con peer esistenti
-- ✅ **P2P Signaling**: Tunneling attraverso peer connessi
-- ✅ **Rendezvous opzionale**: Server centrale solo per facilità
-- ✅ **Nessun SPOF**: Nessun single point of failure
+### **Decentralization**
+- ✅ **P2P Bootstrap**: Handshake with existing peers
+- ✅ **P2P Signaling**: Tunneling through connected peers
+- ✅ **Optional Rendezvous**: Central server only for convenience
+- ✅ **No SPOF**: No single point of failure
 
 ### **Task Management**
-- ✅ **Canali tematici**: Partizionamento logico dei task (richiede sottoscrizione)
-- ✅ **Lifecycle completo**: open → claimed → in_progress → completed
-- ✅ **Propagazione CRDT**: Convergenza garantita via PubSub topic-based
-- ✅ **Validazione transizioni**: Solo agli endpoint API
-- ⚠️ **Sottoscrizione richiesta**: I nodi devono essere sottoscritti ai canali per ricevere aggiornamenti
+- ✅ **Thematic channels**: Logical partitioning of tasks (requires subscription)
+- ✅ **Complete lifecycle**: open → claimed → in_progress → completed
+- ✅ **CRDT propagation**: Guaranteed convergence via topic-based PubSub
+- ✅ **Transition validation**: Only at API endpoints
+- ⚠️ **Subscription required**: Nodes must subscribe to channels to receive updates
 
 ### **Governance**
-- ✅ **Sistema di proposte**: Ogni nodo può proporre cambiamenti
-- ✅ **Voto ponderato**: Peso basato su reputazione (weight = 1 + log₂(reputation + 1))
-- ✅ **Voting distribuito**: Voti propagati via PubSub
-- ✅ **Reputazione dinamica**: Basata su contributi (+10 task, +1 voto)
-- ✅ **Meritocrazia**: Nodi con alta reputazione hanno più influenza nelle decisioni
+- ✅ **Proposal system**: Any node can propose changes
+- ✅ **Weighted voting**: Weight based on reputation (weight = 1 + log₂(reputation + 1))
+- ✅ **Distributed voting**: Votes propagated via PubSub
+- ✅ **Dynamic reputation**: Based on contributions (+10 tasks, +1 vote)
+- ✅ **Meritocracy**: High-reputation nodes have more influence in decisions
 
-## 📦 Installazione
+## 📦 Installation
 
-### Requisiti
+### Requirements
 - Docker & Docker Compose
-- Python 3.9+ (per sviluppo locale)
-- `jq` (per test scripts)
+- Python 3.9+ (for local development)
+- `jq` (for test scripts)
 
-### Quick Start (Modalità Rendezvous)
+### Quick Start (Rendezvous Mode)
 
 ```bash
 # Clone
 git clone https://github.com/your-org/synapse-ng.git
 cd synapse-ng
 
-# Avvia rete con Rendezvous Server
+# Start network with Rendezvous Server
 docker-compose up --build -d
 
-# Verifica stato
+# Check status
 curl http://localhost:8001/state | jq '.global.nodes | length'
 
 # Run test suite
 ./test_suite.sh
 ```
 
-### Quick Start (Modalità P2P Pura)
+### Quick Start (Pure P2P Mode)
 
 ```bash
-# Avvia rete completamente decentralizzata
+# Start fully decentralized network
 docker-compose -f docker-compose.p2p.yml up --build -d
 
-# Verifica connessioni P2P
+# Check P2P connections
 curl http://localhost:8001/webrtc/connections | jq
 
-# Run test P2P
+# Run P2P tests
 ./test_p2p.sh
 ```
 
-## ⚙️ Configurazione
+## ⚙️ Configuration
 
-### Variabili d'Ambiente
+### Environment Variables
 
-| Variabile | Descrizione | Richiesto | Default |
-|-----------|-------------|-----------|---------|
-| `OWN_URL` | URL di questo nodo | ✅ Sì | - |
-| `RENDEZVOUS_URL` | URL del Rendezvous Server | ⚠️ Solo per modalità Rendezvous | - |
-| `BOOTSTRAP_NODES` | Lista di peer bootstrap (CSV) | ⚠️ Solo per modalità P2P | - |
-| `SUBSCRIBED_CHANNELS` | Canali da sottoscrivere (CSV) | No | "" |
-| `NODE_PORT` | Porta del nodo | No | 8000 |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `OWN_URL` | This node's URL | ✅ Yes | - |
+| `RENDEZVOUS_URL` | Rendezvous Server URL | ⚠️ Rendezvous mode only | - |
+| `BOOTSTRAP_NODES` | Bootstrap peer list (CSV) | ⚠️ P2P mode only | - |
+| `SUBSCRIBED_CHANNELS` | Channels to subscribe (CSV) | No | "" |
+| `NODE_PORT` | Node port | No | 8000 |
 
-**⚠️ IMPORTANTE: Sottoscrizioni Canali**
+**⚠️ IMPORTANT: Channel Subscriptions**
 
-Per ricevere task e messaggi su un canale, **tutti i nodi devono essere sottoscritti** al topic corrispondente tramite `SUBSCRIBED_CHANNELS`. Se un nodo non è sottoscritto a un canale, **non riceverà** gli aggiornamenti di quel canale tramite PubSub.
+To receive tasks and messages on a channel, **all nodes must subscribe** to the corresponding topic via `SUBSCRIBED_CHANNELS`. If a node is not subscribed to a channel, it **will not receive** updates for that channel via PubSub.
 
-Esempio:
-- `SUBSCRIBED_CHANNELS=sviluppo_ui` → riceve solo task del canale `sviluppo_ui`
-- `SUBSCRIBED_CHANNELS=sviluppo_ui,marketing` → riceve task di entrambi i canali
+Example:
+- `SUBSCRIBED_CHANNELS=dev_ui` → receives only tasks from `dev_ui` channel
+- `SUBSCRIBED_CHANNELS=dev_ui,marketing` → receives tasks from both channels
 
-### Modalità Operative
+### Operating Modes
 
-#### **Modalità 1: Rendezvous (Più semplice)**
+#### **Mode 1: Rendezvous (Simpler)**
 
-Usa un server centrale per discovery e signaling.
+Uses a central server for discovery and signaling.
 
 ```yaml
 environment:
   - OWN_URL=http://node-1:8000
   - RENDEZVOUS_URL=http://rendezvous:8080
-  - SUBSCRIBED_CHANNELS=sviluppo_ui
+  - SUBSCRIBED_CHANNELS=dev_ui
 ```
 
-**Pro**: Setup semplice, discovery automatico
-**Contro**: Punto centrale di fallimento
+**Pros**: Simple setup, automatic discovery
+**Cons**: Central point of failure
 
-#### **Modalità 2: P2P Puro (Decentralizzato)**
+#### **Mode 2: Pure P2P (Decentralized)**
 
-Nessun server centrale, bootstrap da peer esistenti.
+No central server, bootstrap from existing peers.
 
 ```yaml
 environment:
   - OWN_URL=http://node-2:8000
   - BOOTSTRAP_NODES=http://node-1:8000,http://node-3:8000
-  - SUBSCRIBED_CHANNELS=sviluppo_ui
+  - SUBSCRIBED_CHANNELS=dev_ui
 ```
 
-**Pro**: Completamente decentralizzato, resiliente
-**Contro**: Richiede almeno un bootstrap node
+**Pros**: Fully decentralized, resilient
+**Cons**: Requires at least one bootstrap node
 
 ## 📡 API Endpoints
 
-### **Stato e Monitoring**
+### **Status and Monitoring**
 
 ```bash
-# Stato globale della rete
+# Global network state
 GET /state
 
-# Canali sottoscritti
+# Subscribed channels
 GET /channels
 
-# Connessioni WebRTC
+# WebRTC connections
 GET /webrtc/connections
 
-# Statistiche PubSub
+# PubSub statistics
 GET /pubsub/stats
 ```
 
 ### **Task Management**
 
 ```bash
-# Crea task
+# Create task
 POST /tasks?channel=CHANNEL_ID
 Content-Type: application/json
 {"title": "Fix bug"}
 
-# Prendi in carico
+# Claim task
 POST /tasks/{task_id}/claim?channel=CHANNEL_ID
 
-# Segna in progresso
+# Mark in progress
 POST /tasks/{task_id}/progress?channel=CHANNEL_ID
 
-# Completa
+# Complete task
 POST /tasks/{task_id}/complete?channel=CHANNEL_ID
 
-# Elimina
+# Delete task
 DELETE /tasks/{task_id}?channel=CHANNEL_ID
 ```
 
 ### **Governance**
 
 ```bash
-# Crea proposta
+# Create proposal
 POST /proposals?channel=CHANNEL_ID
 Content-Type: application/json
 {"title": "Proposal Title", "description": "Details", "proposal_type": "generic"}
 
-# Vota su proposta
+# Vote on proposal
 POST /proposals/{proposal_id}/vote?channel=CHANNEL_ID
 Content-Type: application/json
-{"vote": "yes"}  # o "no"
+{"vote": "yes"}  # or "no"
 
-# Chiudi proposta e calcola esito
+# Close proposal and calculate outcome
 POST /proposals/{proposal_id}/close?channel=CHANNEL_ID
 
-# Dettagli proposta (include pesi voti)
+# Get proposal details (includes vote weights)
 GET /proposals/{proposal_id}/details?channel=CHANNEL_ID
 ```
 
-### **Bootstrap P2P**
+### **P2P Bootstrap**
 
 ```bash
-# Handshake iniziale
+# Initial handshake
 POST /bootstrap/handshake
 {"peer_id": "NODE_ID", "peer_url": "http://node:8000"}
 
-# Relay signaling P2P
+# Relay P2P signaling
 POST /p2p/signal/relay
 {"from_peer": "ID_A", "to_peer": "ID_C", "type": "offer", "payload": {...}}
 
-# Ricevi signaling P2P
+# Receive P2P signaling
 POST /p2p/signal/receive
 {"from_peer": "ID_A", "type": "answer", "payload": {...}}
 ```
 
 ## 🧪 Testing
 
-### Test Suite Completa
+### Complete Test Suite
 
-Testa convergenza, WebRTC, PubSub, task lifecycle, reputazione, economia e governance.
+Tests convergence, WebRTC, PubSub, task lifecycle, reputation, economy, and governance.
 
 ```bash
-# Tutti i test (base + economia + governance)
+# All tests (base + economy + governance)
 ./test_suite.sh
 
-# Solo test base
+# Base tests only
 ./test_suite.sh base
 
-# Solo test governance (voto ponderato)
+# Governance tests only (weighted voting)
 ./test_suite.sh governance
 
-# Solo test economia (Synapse Points)
+# Economy tests only (Synapse Points)
 ./test_suite.sh economy
 
-# Mostra opzioni
+# Show options
 ./test_suite.sh help
 ```
 
-**Scenari testati:**
+**Tested Scenarios:**
 
-**Test Base (Scenari 1-6):**
-1. ✅ Avvio a freddo (3 nodi)
-2. ✅ Connessioni WebRTC (verifica peer connections e data channels)
-3. ✅ Sottoscrizioni PubSub (verifica topic subscriptions)
-4. ✅ Ingresso nuovo nodo (scalabilità dinamica)
-5. ✅ Task lifecycle completo (create → claim → progress → complete)
-6. ✅ Sistema reputazione (+10 per task completati)
+**Base Tests (Scenarios 1-6):**
+1. ✅ Cold start (3 nodes)
+2. ✅ WebRTC connections (verify peer connections and data channels)
+3. ✅ PubSub subscriptions (verify topic subscriptions)
+4. ✅ New node joining (dynamic scalability)
+5. ✅ Complete task lifecycle (create → claim → progress → complete)
+6. ✅ Reputation system (+10 for completed tasks)
 
-**Test Economia e Governance (Scenari 7-8):**
-7. ✅ **Voto Ponderato**: Verifica che nodi con alta reputazione abbiano più influenza (peso = 1 + log₂(rep + 1))
-8. ✅ **Economia SP**: Verifica trasferimento deterministico di Synapse Points (creazione task con reward, congelamento SP, trasferimento al completamento)
+**Economy and Governance Tests (Scenarios 7-8):**
+7. ✅ **Weighted Voting**: Verifies that high-reputation nodes have more influence (weight = 1 + log₂(rep + 1))
+8. ✅ **SP Economy**: Verifies deterministic transfer of Synapse Points (task creation with reward, SP freezing, transfer on completion)
 
-**📚 Documentazione Test:**
-- `TEST_ECONOMIA_GOVERNANCE.md` - Documentazione completa
-- `QUICK_START_TESTS.md` - Guida rapida
-- `ESEMPI_API_TEST.md` - Esempi API per test manuali
+**📚 Test Documentation:**
+- `TEST_ECONOMIA_GOVERNANCE.md` - Complete documentation
+- `QUICK_START_TESTS.md` - Quick guide
+- `ESEMPI_API_TEST.md` - API examples for manual tests
 
-**⚠️ Note sui Test:**
-- Tutti i nodi devono essere sottoscritti agli stessi canali per i test cross-node
-- I timeout sono calibrati per WebRTC + PubSub (più lenti del gossip HTTP diretto)
-- La test suite viene eseguita automaticamente nel pre-push git hook
-- I test economia/governance verificano il determinismo: tutti i nodi devono concordare su balance e voti
+**⚠️ Test Notes:**
+- All nodes must subscribe to the same channels for cross-node tests
+- Timeouts are calibrated for WebRTC + PubSub (slower than direct HTTP gossip)
+- Test suite runs automatically in pre-push git hook
+- Economy/governance tests verify determinism: all nodes must agree on balances and votes
 
-### Test WebRTC + SynapseSub
+### WebRTC + SynapseSub Tests
 
 ```bash
 ./test_webrtc.sh
 ```
 
-**Verifica:**
-- Connessioni WebRTC dirette
-- Statistiche PubSub
+**Verifies:**
+- Direct WebRTC connections
+- PubSub statistics
 - Gossip via DataChannel
-- Logs di debugging
+- Debug logs
 
-### Test P2P Decentralizzato
+### Decentralized P2P Tests
 
 ```bash
 ./test_p2p.sh
 ```
 
-**Verifica:**
-- Bootstrap da peer
+**Verifies:**
+- Bootstrap from peers
 - P2P signaling tunneling
-- Gossip senza Rendezvous
-- Rete completamente autonoma
+- Gossip without Rendezvous
+- Fully autonomous network
 
-## 🏗️ Architettura Dettagliata
+## 🏗️ Detailed Architecture
 
-### Struttura File
+### File Structure
 
 ```
 synapse-ng/
@@ -329,19 +329,19 @@ synapse-ng/
 │   ├── main.py                    # Application server
 │   ├── webrtc_manager.py          # WebRTC connection manager
 │   ├── synapsesub_protocol.py     # PubSub protocol
-│   ├── identity.py                # Identità crittografica
+│   ├── identity.py                # Cryptographic identity
 │   └── templates/                 # UI templates
 ├── rendezvous/
-│   └── main.py                    # Rendezvous server (opzionale)
-├── docker-compose.yml             # Config Rendezvous mode
-├── docker-compose.p2p.yml         # Config P2P mode
-├── test_suite.sh                  # Test completo
-├── test_webrtc.sh                 # Test WebRTC/PubSub
-├── test_p2p.sh                    # Test P2P puro
-└── README.md                      # Questo file
+│   └── main.py                    # Rendezvous server (optional)
+├── docker-compose.yml             # Rendezvous mode config
+├── docker-compose.p2p.yml         # P2P mode config
+├── test_suite.sh                  # Complete test suite
+├── test_webrtc.sh                 # WebRTC/PubSub tests
+├── test_p2p.sh                    # Pure P2P tests
+└── README.md                      # This file
 ```
 
-### Flusso di Comunicazione
+### Communication Flow
 
 ```
 ┌─────────┐                      ┌─────────┐
@@ -353,34 +353,34 @@ synapse-ng/
      │                                │
      │ 2. WebRTC Signaling            │
      │<──────────────────────────────>│
-     │   (Rendezvous o P2P Tunnel)    │
+     │   (Rendezvous or P2P Tunnel)   │
      │                                │
-     │ 3. RTCDataChannel Aperto       │
+     │ 3. RTCDataChannel Open         │
      │<═══════════════════════════════>│
      │                                │
      │ 4. ANNOUNCE Topic              │
      │───SynapseSub──────────────────>│
-     │   (sottoscrizione al canale)   │
+     │   (channel subscription)       │
      │                                │
      │ 5. MESSAGE (Gossip)            │
      │<══SynapseSub══════════════════>│
      │    Topic: channel:dev:state    │
-     │    (solo se entrambi           │
-     │     sottoscritti al topic!)    │
+     │    (only if both               │
+     │     subscribed to topic!)      │
      │                                │
-     │ 6. Forward ad altri peer       │
-     │         nella mesh             │
+     │ 6. Forward to other peers      │
+     │         in the mesh            │
      └────────────────────────────────┘
 ```
 
-**Note sul Flusso:**
-- Passo 4: I nodi annunciano i topic a cui sono interessati (`SUBSCRIBED_CHANNELS`)
-- Passo 5: I messaggi vengono inoltrati **solo ai peer sottoscritti** al topic
-- Se un nodo non è sottoscritto, non riceverà messaggi su quel topic
+**Flow Notes:**
+- Step 4: Nodes announce topics they're interested in (`SUBSCRIBED_CHANNELS`)
+- Step 5: Messages are forwarded **only to peers subscribed** to the topic
+- If a node is not subscribed, it won't receive messages on that topic
 
-### CRDT e Convergenza
+### CRDT and Convergence
 
-Lo stato distribuito usa **Last-Write-Wins (LWW)** basato su timestamp:
+Distributed state uses **Last-Write-Wins (LWW)** based on timestamps:
 
 ```python
 # Merge logic (app/main.py:196-201)
@@ -388,19 +388,19 @@ if incoming_task["updated_at"] > local_task["updated_at"]:
     local_state["tasks"][task_id] = incoming_task
 ```
 
-- **Validazione transizioni**: Solo negli endpoint API
-- **Nel gossip**: Timestamp è fonte di verità
-- **Convergenza**: Garantita matematicamente (CRDT)
+- **Transition validation**: Only at API endpoints
+- **In gossip**: Timestamp is source of truth
+- **Convergence**: Mathematically guaranteed (CRDT)
 
-### Sistema di Reputazione e Voto Ponderato
+### Reputation and Weighted Voting System
 
-**Calcolo Reputazione:**
+**Reputation Calculation:**
 ```python
-# Azioni che incrementano reputazione
-- Completamento task: +10
-- Voto su proposta: +1
+# Actions that increase reputation
+- Task completion: +10
+- Proposal vote: +1
 
-# Calcolo (app/main.py:846-858)
+# Calculation (app/main.py:846-858)
 for task in channel.tasks:
     if task.status == "completed":
         reputation[task.assignee] += 10
@@ -410,61 +410,61 @@ for proposal in channel.proposals:
         reputation[voter_id] += 1
 ```
 
-**Voto Ponderato:**
+**Weighted Voting:**
 ```python
-# Peso del voto basato su reputazione (app/main.py:914-915)
+# Vote weight based on reputation (app/main.py:914-915)
 def calculate_vote_weight(reputation: int) -> float:
     return 1.0 + math.log2(reputation + 1)
 
-# Esempi:
-# Reputazione 0 → Peso 1.0
-# Reputazione 1 → Peso 2.0
-# Reputazione 20 → Peso 5.4
-# Reputazione 100 → Peso 7.7
+# Examples:
+# Reputation 0 → Weight 1.0
+# Reputation 1 → Weight 2.0
+# Reputation 20 → Weight 5.4
+# Reputation 100 → Weight 7.7
 
-# Esito proposta (app/main.py:966-969)
+# Proposal outcome (app/main.py:966-969)
 if yes_weight > no_weight:
     outcome = "approved"
 else:
     outcome = "rejected"
 ```
 
-**Esempio pratico:**
+**Practical Example:**
 ```
-Scenario: Proposta con 3 nodi
-- Node A: reputazione 20 (2 task completati) → peso voto ~5.4
-- Node B: reputazione 1 (1 voto) → peso voto ~2.0
-- Node C: reputazione 0 → peso voto 1.0
+Scenario: Proposal with 3 nodes
+- Node A: reputation 20 (2 completed tasks) → vote weight ~5.4
+- Node B: reputation 1 (1 vote) → vote weight ~2.0
+- Node C: reputation 0 → vote weight 1.0
 
-Votazione:
-- Node A vota NO → peso 5.4
-- Node B vota YES → peso 2.0
-- Node C vota YES → peso 1.0
+Voting:
+- Node A votes NO → weight 5.4
+- Node B votes YES → weight 2.0
+- Node C votes YES → weight 1.0
 
-Risultato:
-- YES totale: 3.0
-- NO totale: 5.4
-- Esito: REJECTED ✅
+Result:
+- YES total: 3.0
+- NO total: 5.4
+- Outcome: REJECTED ✅
 
-La meritocrazia prevale: il nodo più esperto ha più influenza!
+Meritocracy prevails: the most experienced node has more influence!
 ```
 
-## 🔮 Roadmap Futura
+## 🔮 Future Roadmap
 
-- [ ] **mDNS Discovery**: Discovery locale senza bootstrap
-- [ ] **DHT**: Distributed Hash Table per lookup peer
-- [ ] **Encryption E2E**: Cifratura payload oltre a WebRTC
-- [ ] **NAT Traversal**: STUN/TURN integrati
-- [ ] **Mobile Nodes**: Supporto nodi mobili/intermittenti
-- [ ] **Sharding Dinamico**: Bilanciamento automatico canali
-- [ ] **Consensus avanzato**: Raft/PBFT per decisioni critiche
+- [ ] **mDNS Discovery**: Local discovery without bootstrap
+- [ ] **DHT**: Distributed Hash Table for peer lookup
+- [ ] **E2E Encryption**: Payload encryption beyond WebRTC
+- [ ] **NAT Traversal**: Integrated STUN/TURN
+- [ ] **Mobile Nodes**: Support for mobile/intermittent nodes
+- [ ] **Dynamic Sharding**: Automatic channel balancing
+- [ ] **Advanced Consensus**: Raft/PBFT for critical decisions
 
 ## 🤝 Contributing
 
-Contributi benvenuti! Per feature importanti, apri prima una issue per discutere.
+Contributions welcome! For important features, please open an issue first to discuss.
 
 ```bash
-# Setup sviluppo
+# Development setup
 pip install -r requirements.txt
 
 # Run local node
@@ -473,17 +473,17 @@ python -m uvicorn app.main:app --reload --port 8000
 
 ## 📄 License
 
-MIT License - vedi [LICENSE](LICENSE) per dettagli.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-Ispirato da:
+Inspired by:
 - **libp2p**: Modular P2P networking stack
-- **GossipSub**: PubSub protocol per mesh networks
-- **WebRTC**: Standard P2P per il web
+- **GossipSub**: PubSub protocol for mesh networks
+- **WebRTC**: P2P standard for the web
 - **IPFS**: InterPlanetary File System
 - **Holochain**: Agent-centric distributed computing
 
 ---
 
-**Synapse-NG** - Dove ogni nodo è un neurone, e insieme formano un organismo vivente. 🧠✨
+**Synapse-NG** - Where each node is a neuron, and together they form a living organism. 🧠✨
