@@ -961,8 +961,9 @@ def calculate_proposal_outcome(proposal: dict, reputations: Dict[str, int]) -> d
             no_weight += weight
             no_count += 1
 
-    # Determina l'esito
-    if proposal.get("status") == "closed":
+    # Determina l'esito basato sui voti
+    # Se ci sono voti, calcola sempre l'esito (anche se la proposta non è ancora chiusa)
+    if yes_weight > 0 or no_weight > 0:
         outcome = "approved" if yes_weight > no_weight else "rejected"
     else:
         outcome = "pending"
