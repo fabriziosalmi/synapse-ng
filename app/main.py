@@ -82,6 +82,11 @@ class CreateTaskPayload(BaseModel):
     title: str
     reward: int = 0  # Ricompensa in Synapse Points (opzionale)
 
+class CreateProposalPayload(BaseModel):
+    title: str
+    description: str = ""
+    proposal_type: str = "generic"
+
 state_lock = asyncio.Lock()
 
 subscribed_channels: Set[str] = {"global"}.union(set(c.strip() for c in SUBSCRIBED_CHANNELS_ENV.split(",") if c.strip()))
@@ -421,15 +426,13 @@ async def complete_task(task_id: str, channel: str):
 # --- Endpoint Governance: Proposte ---
 
 @app.post("/proposals", status_code=201)
-async def create_proposal(channel: str, title: str, description: str, proposal_type: str = "generic"):
+async def create_proposal(channel: str, payload: CreateProposalPayload):
     """
     Crea una nuova proposta in un canale.
 
     Args:
         channel: ID del canale
-        title: Titolo della proposta
-        description: Descrizione dettagliata
-        proposal_type: Tipo (generic, parameter_change, member_action, etc.)
+        payload: Dati della proposta (title, description opzionale, proposal_type opzionale)
     """
     if channel not in subscribed_channels:
         raise HTTPException(400, "Canale non sottoscritto")
@@ -439,9 +442,9 @@ async def create_proposal(channel: str, title: str, description: str, proposal_t
         local_state = network_state.setdefault(channel, {"participants": set(), "tasks": {}, "proposals": {}})
         proposal = {
             "id": proposal_id,
-            "title": title,
-            "description": description,
-            "type": proposal_type,
+            "title": payload.title,
+            "description": payload.description,
+            "type": payload.proposal_type,
             "proposer": NODE_ID,
             "status": "open",
             "votes": {},
@@ -451,7 +454,7 @@ async def create_proposal(channel: str, title: str, description: str, proposal_t
         }
         local_state["proposals"][proposal_id] = proposal
 
-    logging.info(f"📝 Proposta creata: {title[:30]}... su canale {channel}")
+    logging.info(f"📝 Proposta creata: {payload.title[:30]}... su canale {channel}")
     return proposal
 
 @app.post("/proposals/{proposal_id}/vote", status_code=200)
@@ -509,7 +512,8 @@ async def close_proposal(proposal_id: str, channel: str):
         proposal["status"] = "closed"
         proposal["closed_at"] = datetime.now(timezone.utc).isoformat()
         proposal["updated_at"] = datetime.now(timezone.utc).isoformat()
-        proposal["outcome"] = outcome
+        proposal["outcome"] = outcome["outcome"]  # Salva solo la stringa "approved" o "rejected"
+        proposal["vote_details"] = outcome  # Salva i dettagli completi in un campo separato
 
     logging.info(f"🏛️  Proposta {proposal_id[:8]}... chiusa: {outcome['outcome']} (yes: {outcome['yes_weight']}, no: {outcome['no_weight']})")
     return proposal
