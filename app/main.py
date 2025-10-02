@@ -3212,6 +3212,10 @@ def validate_against_schema(data: dict, schema_name: str, schemas: dict) -> tupl
         
         value = data[field_name]
         
+        # Se il valore è None e il default è None, lo considera valido
+        if value is None and default_value is None:
+            continue
+        
         # Validazione per tipo: string
         if field_type == "string":
             if not isinstance(value, str):
