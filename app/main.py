@@ -461,14 +461,14 @@ async def create_proposal(channel: str, payload: CreateProposalPayload):
     return proposal
 
 @app.post("/proposals/{proposal_id}/vote", status_code=200)
-async def vote_on_proposal(proposal_id: str, channel: str, vote: Literal["yes", "no"]):
+async def vote_on_proposal(proposal_id: str, channel: str, payload: VotePayload):
     """
     Vota su una proposta.
 
     Args:
         proposal_id: ID della proposta
         channel: ID del canale
-        vote: "yes" o "no"
+        payload: Dati del voto (vote: "yes" o "no")
     """
     if channel not in network_state or proposal_id not in network_state[channel].get("proposals", {}):
         raise HTTPException(404, "Proposta non trovata")
@@ -480,26 +480,23 @@ async def vote_on_proposal(proposal_id: str, channel: str, vote: Literal["yes", 
             raise HTTPException(400, "La proposta è già chiusa")
 
         # Aggiungi/aggiorna voto
-        proposal["votes"][NODE_ID] = vote
+        proposal["votes"][NODE_ID] = payload.vote
         proposal["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    logging.info(f"🗳️  Voto '{vote}' su proposta {proposal_id[:8]}... da {NODE_ID[:8]}...")
-    return {"status": "voted", "vote": vote}
+    logging.info(f"🗳️  Voto '{payload.vote}' su proposta {proposal_id[:8]}... da {NODE_ID[:8]}...")
+    return {"status": "voted", "vote": payload.vote}
 
 @app.post("/proposals/{proposal_id}/close", status_code=200)
 async def close_proposal(proposal_id: str, channel: str):
     """
     Chiude una proposta e calcola l'esito con voto ponderato.
-    Solo il proposer può chiudere la proposta.
+    Qualsiasi nodo può chiudere una proposta per calcolare il risultato.
     """
     if channel not in network_state or proposal_id not in network_state[channel].get("proposals", {}):
         raise HTTPException(404, "Proposta non trovata")
 
     async with state_lock:
         proposal = network_state[channel]["proposals"][proposal_id]
-
-        if proposal["proposer"] != NODE_ID:
-            raise HTTPException(403, "Solo il proposer può chiudere la proposta")
 
         if proposal["status"] != "open":
             raise HTTPException(400, "La proposta è già chiusa")
