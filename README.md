@@ -23,9 +23,12 @@ Each node is a sovereign "neuron" that collaborates to form a collective conscio
 
 ### Advanced Features
 - **[Self-Upgrade System](docs/SELF_UPGRADE_SYSTEM.md)** - Autonomous code evolution with WASM sandboxing
-- **[Phase 7: Network Singularity](docs/PHASE_7_NETWORK_SINGULARITY.md)** - AI-powered autonomous code generation
-- **[AI Agent](docs/AI_AGENT.md)** - Intelligent agent capabilities
+- **[Phase 7: Network Singularity](docs/PHASE_7_NETWORK_SINGULARITY.md)** - AI-powered autonomous code generation (optional)
+- **[AI Agent](docs/AI_AGENT.md)** - Intelligent agent capabilities (optional)
+- **[AI Setup Guide](docs/AI_SETUP.md)** - How to enable optional AI features ⚠️ **AI is optional**
 - **[Collaborative Teams](docs/COLLABORATIVE_TEAMS.md)** - Temporary squads/guilds for complex tasks
+
+> **Note**: AI features are completely optional. Synapse-NG works fully without AI - the system provides all core P2P, governance, and task management capabilities with zero AI dependencies.
 
 ### Testing & Deployment
 - **[Testing Guide](docs/TESTING_GUIDE.md)** - Comprehensive test suite documentation

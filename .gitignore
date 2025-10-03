@@ -18,6 +18,10 @@ VENV/
 # ATTENZIONE: Questa directory contiene le chiavi private generate e non deve mai essere commessa.
 data/
 
+# AI Models (too large for git, users download separately)
+models/
+*.gguf
+
 # IDE and editor configuration files
 .vscode/
 .idea/
