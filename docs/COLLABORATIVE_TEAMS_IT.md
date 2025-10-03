@@ -1,69 +1,69 @@
-# Collaborative Teams and Composite Tasks System
+# Sistema di Squadre Collaborative e Task Compositi
 
-## 📋 Overview
+## 📋 Panoramica
 
-The **Collaborative Teams** system enables the Synapse-NG network to automatically form temporary specialized teams to tackle complex tasks requiring diverse competencies. This enables **emergent self-organization** similar to the formation of specialized "organs" in a biological organism.
+Il sistema di **Collaborative Teams** permette alla rete Synapse-NG di formare automaticamente squadre temporanee specializzate per affrontare task complessi che richiedono competenze diverse. Questo abilita l'**auto-organizzazione emergente** simile alla formazione di "organi" specializzati in un organismo biologico.
 
-**Implementation Date**: 2025-10-02  
+**Data Implementazione**: 2025-10-02  
 **Status**: ✅ Production-Ready
 
 ---
 
-## 🎯 Key Features
+## 🎯 Caratteristiche Principali
 
-✅ **Composite Tasks**: Tasks divided into sub-tasks with specific required skills  
-✅ **Skill Profiles**: Each node declares its competencies  
-✅ **Automatic Matching**: Skill matching algorithm for applications  
-✅ **Coordinator**: One node claims the task and coordinates the team  
-✅ **Temporary Workspace**: Auto-created private channel for collaboration  
-✅ **Reward Distribution**: Automatic rewards for coordinator and members  
-✅ **Auto-Dissolution**: Workspace dissolves upon completion  
+✅ **Task Compositi**: Task divisi in sub-tasks con skills specifiche richieste  
+✅ **Profili Skills**: Ogni nodo dichiara le proprie competenze  
+✅ **Matching Automatico**: Algoritmo di skill matching per candidature  
+✅ **Coordinatore**: Un nodo reclama il task e coordina la squadra  
+✅ **Workspace Temporaneo**: Canale privato auto-creato per la collaborazione  
+✅ **Distribuzione Rewards**: Reward automatici per coordinatore e membri  
+✅ **Auto-Dissoluzione**: Il workspace si dissolve al completamento  
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architettura
 
-### Key Components
+### Componenti Chiave
 
 ```
-Composite Task
-├── Coordinator (1 node that claimed the task)
-├── Sub-Tasks (list of micro-tasks)
+Task Composito
+├── Coordinatore (1 nodo che ha reclamato il task)
+├── Sub-Tasks (lista di micro-tasks)
 │   ├── Sub-Task 1 → required_skills: ["python", "fastapi"]
 │   ├── Sub-Task 2 → required_skills: ["react", "typescript"]
 │   └── Sub-Task 3 → required_skills: ["docker", "kubernetes"]
-├── Team Members (nodes selected by coordinator)
-├── Workspace Channel (temporary private channel)
-└── Rewards (points distributed upon completion)
+├── Team Members (nodi selezionati dal coordinatore)
+├── Workspace Channel (canale temporaneo privato)
+└── Rewards (points distribuiti al completamento)
 ```
 
-### Composite Task States
+### Stati del Task Composito
 
 ```
 open → forming_team → in_progress → completed
   ↓         ↓              ↓             ↓
-Created  Coordinator   Team formed   All sub-tasks
-         claimed                     completed
+Creato   Coordinatore   Squadra      Tutti sub-tasks
+         reclamato      formata      completati
 ```
 
 ---
 
-## 📊 Data Schema
+## 📊 Schema Dati
 
 ### TaskComposite
 
 ```json
 {
   "task_id": "tc-abc12345",
-  "title": "Implement Analytics Dashboard",
-  "description": "Complete dashboard with backend, frontend and deployment",
+  "title": "Implementare Dashboard Analytics",
+  "description": "Dashboard completa con backend, frontend e deployment",
   "task_type": "composite",
   
   "sub_tasks": [
     {
       "sub_task_id": "st-xyz789",
       "title": "Backend API",
-      "description": "Create REST API with FastAPI",
+      "description": "Creare REST API con FastAPI",
       "required_skills": ["python", "fastapi", "postgresql"],
       "assigned_to": "node-alice",
       "status": "in_progress",
@@ -87,7 +87,7 @@ Created  Coordinator   Team formed   All sub-tasks
       "node_id": "node-dave",
       "skills": ["python", "django"],
       "skill_match": 50.0,
-      "message": "5 years experience",
+      "message": "Esperienza 5 anni",
       "timestamp": "2025-10-02T10:30:00Z"
     }
   ],
@@ -103,7 +103,7 @@ Created  Coordinator   Team formed   All sub-tasks
 }
 ```
 
-### NodeSkills (Profile)
+### NodeSkills (Profilo)
 
 ```json
 {
@@ -115,7 +115,7 @@ Created  Coordinator   Team formed   All sub-tasks
     "postgresql": 3,
     "docker": 4
   },
-  "bio": "Backend developer with 5 years experience",
+  "bio": "Backend developer con 5 anni di esperienza",
   "availability": "available",
   "completed_tasks": 42,
   "team_participations": 15,
@@ -128,9 +128,9 @@ Created  Coordinator   Team formed   All sub-tasks
 
 ## 🔌 API Reference
 
-### 1. Skills Profile Management
+### 1. Gestione Profilo Skills
 
-#### Update Profile
+#### Aggiorna Profilo
 ```http
 POST /skills/profile?channel=dev
 Content-Type: application/json
@@ -144,47 +144,47 @@ Content-Type: application/json
 **Response**:
 ```json
 {
-  "message": "Profile updated",
+  "message": "Profilo aggiornato",
   "node_id": "node-alice",
   "skills": ["python", "fastapi", "postgresql", "docker"],
   "bio": "Backend developer"
 }
 ```
 
-#### Retrieve Profile
+#### Recupera Profilo
 ```http
 GET /skills/profile?channel=dev&node_id=node-alice
 ```
 
 ---
 
-### 2. Composite Task Creation
+### 2. Creazione Task Composito
 
 ```http
 POST /tasks/composite/create?channel=dev
 Content-Type: application/json
 
 {
-  "title": "Analytics Dashboard",
-  "description": "Complete dashboard with backend, frontend and deployment",
+  "title": "Dashboard Analytics",
+  "description": "Dashboard completa con backend, frontend e deployment",
   "max_team_size": 5,
   "coordinator_bonus": 100,
   "sub_tasks": [
     {
       "title": "Backend API",
-      "description": "REST API with FastAPI",
+      "description": "REST API con FastAPI",
       "required_skills": ["python", "fastapi", "postgresql"],
       "reward_points": 300
     },
     {
       "title": "Frontend Dashboard",
-      "description": "React UI with charts",
+      "description": "UI React con grafici",
       "required_skills": ["react", "typescript", "d3.js"],
       "reward_points": 350
     },
     {
       "title": "DevOps & Deploy",
-      "description": "CI/CD setup and deployment",
+      "description": "Setup CI/CD e deployment",
       "required_skills": ["docker", "kubernetes", "ci/cd"],
       "reward_points": 250
     }
@@ -195,9 +195,9 @@ Content-Type: application/json
 **Response**:
 ```json
 {
-  "message": "✅ Composite task created",
+  "message": "✅ Task composito creato",
   "task_id": "tc-abc12345",
-  "title": "Analytics Dashboard",
+  "title": "Dashboard Analytics",
   "sub_tasks_count": 3,
   "required_skills": ["python", "fastapi", "postgresql", "react", "typescript", "d3.js", "docker", "kubernetes", "ci/cd"],
   "total_reward": 1000,
@@ -207,7 +207,7 @@ Content-Type: application/json
 
 ---
 
-### 3. Claim Task (Become Coordinator)
+### 3. Reclama Task (Diventa Coordinatore)
 
 ```http
 POST /tasks/composite/tc-abc12345/claim?channel=dev
@@ -216,32 +216,32 @@ POST /tasks/composite/tc-abc12345/claim?channel=dev
 **Response**:
 ```json
 {
-  "message": "✅ You became coordinator!",
+  "message": "✅ Sei diventato coordinatore!",
   "task_id": "tc-abc12345",
   "coordinator": "node-alice",
   "status": "forming_team",
   "announcement_id": "ann-xyz789",
-  "announcement": "🔍 Looking for 4 members for composite task!\n\n📋 Task: Analytics Dashboard\n🎯 Required skills: python, fastapi, react, docker, kubernetes\n💰 Total reward: 1000 SP\n👥 Available spots: 4\n\nApply with: POST /tasks/composite/tc-abc12345/apply"
+  "announcement": "🔍 Cerco 4 membri per task composito!\n\n📋 Task: Dashboard Analytics\n🎯 Skills richieste: python, fastapi, react, docker, kubernetes\n💰 Reward totale: 1000 SP\n👥 Posti disponibili: 4\n\nCandidati con: POST /tasks/composite/tc-abc12345/apply"
 }
 ```
 
 ---
 
-### 4. Apply for Task
+### 4. Candidatura per Task
 
 ```http
 POST /tasks/composite/tc-abc12345/apply?channel=dev
 Content-Type: application/json
 
 {
-  "message": "I have 5 years experience with React and TypeScript"
+  "message": "Ho 5 anni di esperienza con React e TypeScript"
 }
 ```
 
 **Response**:
 ```json
 {
-  "message": "✅ Application sent!",
+  "message": "✅ Candidatura inviata!",
   "task_id": "tc-abc12345",
   "applicant": "node-bob",
   "skill_match": "66.7%",
@@ -251,7 +251,7 @@ Content-Type: application/json
 
 ---
 
-### 5. Accept Member (Coordinator Only)
+### 5. Accetta Membro (Solo Coordinatore)
 
 ```http
 POST /tasks/composite/tc-abc12345/accept/node-bob?channel=dev
@@ -260,7 +260,7 @@ POST /tasks/composite/tc-abc12345/accept/node-bob?channel=dev
 **Response**:
 ```json
 {
-  "message": "✅ Member node-bob accepted!",
+  "message": "✅ Membro node-bob accettato!",
   "task_id": "tc-abc12345",
   "new_member": "node-bob",
   "team_size": 2,
@@ -268,10 +268,10 @@ POST /tasks/composite/tc-abc12345/accept/node-bob?channel=dev
 }
 ```
 
-**When team is complete**:
+**Quando la squadra è completa**:
 ```json
 {
-  "message": "✅ Member node-carol accepted!",
+  "message": "✅ Membro node-carol accettato!",
   "task_id": "tc-abc12345",
   "new_member": "node-carol",
   "team_size": 3,
@@ -283,26 +283,26 @@ POST /tasks/composite/tc-abc12345/accept/node-bob?channel=dev
 
 ---
 
-### 6. Complete Sub-Task
+### 6. Completa Sub-Task
 
 ```http
 POST /tasks/composite/tc-abc12345/subtask/st-xyz789/complete?channel=dev
 ```
 
-**Response** (sub-task completed):
+**Response** (sub-task completato):
 ```json
 {
-  "message": "✅ Sub-task completed!",
+  "message": "✅ Sub-task completato!",
   "task_id": "tc-abc12345",
   "subtask_id": "st-xyz789",
   "all_completed": false
 }
 ```
 
-**Response** (all sub-tasks completed):
+**Response** (tutti sub-tasks completati):
 ```json
 {
-  "message": "✅ Sub-task completed!",
+  "message": "✅ Sub-task completato!",
   "task_id": "tc-abc12345",
   "subtask_id": "st-def456",
   "all_completed": true,
@@ -317,7 +317,7 @@ POST /tasks/composite/tc-abc12345/subtask/st-xyz789/complete?channel=dev
 
 ---
 
-### 7. List Composite Tasks
+### 7. Lista Task Compositi
 
 ```http
 GET /tasks/composite?channel=dev&status=open
@@ -332,7 +332,7 @@ GET /tasks/composite?channel=dev&status=open
   "tasks": [
     {
       "task_id": "tc-abc12345",
-      "title": "Analytics Dashboard",
+      "title": "Dashboard Analytics",
       "status": "open",
       "required_skills": ["python", "react", "docker"],
       "total_reward_points": 1000,
@@ -344,50 +344,49 @@ GET /tasks/composite?channel=dev&status=open
 
 ---
 
-### 8. Composite Task Details
+### 8. Dettagli Task Composito
 
 ```http
 GET /tasks/composite/tc-abc12345?channel=dev
 ```
 
-**Response**: Returns complete task (applications visible only to coordinator)
+**Response**: Restituisce il task completo (le candidature sono visibili solo al coordinatore)
 
 ---
 
-## 🔄 Complete Flow
+## 🔄 Flusso Completo
 
-### Scenario: "Implement Analytics Dashboard"
+### Scenario: "Implementare Dashboard Analytics"
 
 ```
 ┌─────────────┐
 │ 1. Alice    │
-│ creates     │
-│ composite   │
-│ task        │
+│ crea task   │
+│ composito   │
 └──────┬──────┘
        │
        │ POST /tasks/composite/create
        │
        ▼
 ┌────────────────────────────────────────┐
-│ Task: Analytics Dashboard              │
+│ Task: Dashboard Analytics              │
 │ - Backend API (300 SP)                 │
 │ - Frontend (350 SP)                    │
 │ - DevOps (250 SP)                      │
 │ Status: open                           │
 └──────┬─────────────────────────────────┘
        │
-       │ 2. Alice claims (becomes coordinator)
+       │ 2. Alice reclama (diventa coordinatore)
        │ POST /tasks/composite/{id}/claim
        │
        ▼
 ┌────────────────────────────────────────┐
 │ Status: forming_team                   │
 │ Coordinator: Alice                     │
-│ Announcement published                 │
+│ Announcement pubblicato                │
 └──────┬─────────────────────────────────┘
        │
-       │ 3. Bob, Carol, Dave apply
+       │ 3. Bob, Carol, Dave si candidano
        │ POST /tasks/composite/{id}/apply
        │
        ▼
@@ -398,7 +397,7 @@ GET /tasks/composite/tc-abc12345?channel=dev
 │ - Dave: 33.3% match (python, django)  │
 └──────┬─────────────────────────────────┘
        │
-       │ 4. Alice accepts Bob and Carol
+       │ 4. Alice accetta Bob e Carol
        │ POST /tasks/composite/{id}/accept/node-bob
        │ POST /tasks/composite/{id}/accept/node-carol
        │
@@ -406,18 +405,18 @@ GET /tasks/composite/tc-abc12345?channel=dev
 ┌────────────────────────────────────────┐
 │ Status: in_progress                    │
 │ Team: Alice (coordinator), Bob, Carol  │
-│ Workspace: team-tc-abc12345 (created!) │
+│ Workspace: team-tc-abc12345 (creato!) │
 │                                        │
-│ Auto-assignment:                       │
+│ Auto-assegnamento:                     │
 │ - Backend API → Alice                  │
 │ - Frontend → Bob                       │
 │ - DevOps → Carol                       │
 └──────┬─────────────────────────────────┘
        │
-       │ 5. Members work in workspace
-       │ [Collaboration in team-tc-abc12345 channel]
+       │ 5. Membri lavorano nel workspace
+       │ [Collaborazione nel canale team-tc-abc12345]
        │
-       │ 6. Sub-tasks completion
+       │ 6. Completamento sub-tasks
        │ POST /tasks/.../subtask/st-1/complete (Alice)
        │ POST /tasks/.../subtask/st-2/complete (Bob)
        │ POST /tasks/.../subtask/st-3/complete (Carol)
@@ -426,7 +425,7 @@ GET /tasks/composite/tc-abc12345?channel=dev
 ┌────────────────────────────────────────┐
 │ Status: completed ✅                   │
 │                                        │
-│ Rewards distributed:                   │
+│ Rewards distribuiti:                   │
 │ - Alice: 300 + 100 (bonus) = 400 SP   │
 │ - Bob: 350 SP                          │
 │ - Carol: 250 SP                        │
@@ -437,16 +436,16 @@ GET /tasks/composite/tc-abc12345?channel=dev
 
 ---
 
-## 🧮 Key Algorithms
+## 🧮 Algoritmi Chiave
 
 ### Skill Matching
 
 ```python
 def calculate_skill_match(node_skills: List[str], required_skills: List[str]) -> float:
     """
-    Calculate % match between node skills and required skills.
+    Calcola % di match tra skills del nodo e skills richieste.
     
-    Example:
+    Esempio:
     - node_skills = ["python", "react", "docker"]
     - required_skills = ["python", "fastapi", "postgresql"]
     - match = 1/3 = 33.3%
@@ -458,16 +457,16 @@ def calculate_skill_match(node_skills: List[str], required_skills: List[str]) ->
     return len(matched) / len(required_skills)
 ```
 
-### Auto-Assignment of Sub-Tasks
+### Auto-Assegnamento Sub-Tasks
 
 ```python
 def auto_assign_subtasks(task, node_skills_map):
     """
-    Assign each sub-task to member with best skill match.
+    Assegna ogni sub-task al membro con il miglior skill match.
     
-    1. For each unassigned sub-task
-    2. Calculate skill match with each member
-    3. Assign to member with highest match
+    1. Per ogni sub-task non assegnato
+    2. Calcola skill match con ogni membro
+    3. Assegna al membro con match più alto
     """
     for subtask in task.sub_tasks:
         if subtask.assigned_to:
@@ -489,16 +488,16 @@ def auto_assign_subtasks(task, node_skills_map):
             subtask.assigned_to = best_member
 ```
 
-### Reward Distribution
+### Distribuzione Rewards
 
 ```python
 def distribute_rewards(task, peer_scores, synapse_points):
     """
-    Distribute rewards to:
-    1. Members who completed sub-tasks (sub-task reward_points)
-    2. Coordinator (coordinator_bonus)
+    Distribuisce rewards a:
+    1. Membri che hanno completato sub-tasks (reward_points del sub-task)
+    2. Coordinatore (coordinator_bonus)
     
-    Also updates reputation (+10% of points earned)
+    Aggiorna anche la reputazione (+10% dei points guadagnati)
     """
     distribution = {}
     
@@ -507,11 +506,11 @@ def distribute_rewards(task, peer_scores, synapse_points):
         if st.status == "completed" and st.assigned_to:
             distribution[st.assigned_to] = st.reward_points
     
-    # Coordinator
+    # Coordinatore
     if task.coordinator:
         distribution[task.coordinator] += task.coordinator_bonus
     
-    # Apply
+    # Applica
     for node_id, points in distribution.items():
         synapse_points[node_id] += points
         peer_scores[node_id]["reputation"] += points * 0.1
@@ -521,61 +520,61 @@ def distribute_rewards(task, peer_scores, synapse_points):
 
 ---
 
-## 🎯 Usage Examples
+## 🎯 Esempi d'Uso
 
-### Example 1: Backend Developer
+### Esempio 1: Backend Developer
 
-Alice is a backend developer who wants to earn Synapse Points:
+Alice è una backend developer che vuole guadagnare Synapse Points:
 
 ```bash
-# 1. Create skills profile
+# 1. Crea profilo skills
 curl -X POST "http://localhost:8001/skills/profile?channel=dev" \
   -H "Content-Type: application/json" \
   -d '{
     "skills": ["python", "fastapi", "postgresql", "docker"],
-    "bio": "Backend developer with 5 years experience"
+    "bio": "Backend developer con 5 anni di esperienza"
   }'
 
-# 2. Search for open composite tasks
+# 2. Cerca task compositi aperti
 curl "http://localhost:8001/tasks/composite?channel=dev&status=open"
 
-# 3. Apply for a task
+# 3. Candidati per un task
 curl -X POST "http://localhost:8001/tasks/composite/tc-abc123/apply?channel=dev" \
-  -d '{"message": "I have experience with FastAPI and PostgreSQL"}'
+  -d '{"message": "Ho esperienza con FastAPI e PostgreSQL"}'
 
-# 4. (If accepted) Work on assigned sub-task in workspace
+# 4. (Se accettata) Lavora sul sub-task assegnato nel workspace
 
-# 5. Complete sub-task
+# 5. Completa il sub-task
 curl -X POST "http://localhost:8001/tasks/composite/tc-abc123/subtask/st-xyz789/complete?channel=dev"
 
-# 6. Receive reward automatically upon task completion
+# 6. Ricevi reward automaticamente al completamento del task
 ```
 
 ---
 
-### Example 2: Project Manager
+### Esempio 2: Project Manager
 
-Bob wants to coordinate a complex project:
+Bob vuole coordinare un progetto complesso:
 
 ```bash
-# 1. Create composite task
+# 1. Crea task composito
 curl -X POST "http://localhost:8001/tasks/composite/create?channel=dev" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "E-Commerce Platform",
-    "description": "Complete platform with frontend, backend, payment, deployment",
+    "description": "Piattaforma completa con frontend, backend, payment, deployment",
     "max_team_size": 6,
     "coordinator_bonus": 200,
     "sub_tasks": [
       {
         "title": "Backend API",
-        "description": "REST API with authentication",
+        "description": "REST API con autenticazione",
         "required_skills": ["python", "fastapi", "jwt"],
         "reward_points": 400
       },
       {
         "title": "Frontend React",
-        "description": "Responsive UI with React",
+        "description": "UI responsive con React",
         "required_skills": ["react", "typescript", "tailwind"],
         "reward_points": 450
       },
@@ -587,118 +586,118 @@ curl -X POST "http://localhost:8001/tasks/composite/create?channel=dev" \
       },
       {
         "title": "DevOps",
-        "description": "CI/CD pipeline and deployment",
+        "description": "CI/CD pipeline e deployment",
         "required_skills": ["docker", "kubernetes", "terraform"],
         "reward_points": 300
       }
     ]
   }'
 
-# 2. Claim task (become coordinator)
+# 2. Reclama task (diventa coordinatore)
 curl -X POST "http://localhost:8001/tasks/composite/tc-xyz789/claim?channel=dev"
 
-# 3. Receive applications automatically
-# (nodes with skill match apply)
+# 3. Ricevi candidature automaticamente
+# (i nodi con skill match si candidano)
 
-# 4. Accept members
+# 4. Accetta membri
 curl -X POST "http://localhost:8001/tasks/composite/tc-xyz789/accept/node-alice?channel=dev"
 curl -X POST "http://localhost:8001/tasks/composite/tc-xyz789/accept/node-carol?channel=dev"
-# ... accept other members
+# ... accetta altri membri
 
-# 5. (When team complete) Workspace created automatically!
-# Coordination in "team-tc-xyz789" channel
+# 5. (Quando squadra completa) Workspace creato automaticamente!
+# Coordinamento nel canale "team-tc-xyz789"
 
-# 6. Upon completion, receive coordinator_bonus (200 SP)
+# 6. Al completamento, ricevi coordinator_bonus (200 SP)
 ```
 
 ---
 
-### Example 3: Automatic Skill Match
+### Esempio 3: Skill Match Automatico
 
 ```python
-# Scenario: Task requires ["python", "fastapi", "postgresql"]
+# Scenario: Task richiede ["python", "fastapi", "postgresql"]
 
-# Candidate 1: Alice
+# Candidato 1: Alice
 skills = ["python", "fastapi", "postgresql", "docker"]
-match = 3/3 = 100%  # Perfect match! ✅
+match = 3/3 = 100%  # Match perfetto! ✅
 
-# Candidate 2: Bob
+# Candidato 2: Bob
 skills = ["python", "django", "mysql"]
-match = 1/3 = 33.3%  # Only Python match
+match = 1/3 = 33.3%  # Solo Python match
 
-# Candidate 3: Carol
+# Candidato 3: Carol
 skills = ["javascript", "react", "node.js"]
-match = 0/3 = 0%  # No match ❌
+match = 0/3 = 0%  # Nessun match ❌
 
-# System shows coordinator:
+# Il sistema mostra al coordinatore:
 # 1. Alice: 100% match
 # 2. Bob: 33.3% match
-# 3. Carol: 0% match (might not be shown)
+# 3. Carol: 0% match (potrebbe non essere mostrata)
 ```
 
 ---
 
-## 🔐 Security and Permissions
+## 🔐 Sicurezza e Permessi
 
-### Access Controls
+### Controlli di Accesso
 
-| Action | Who can execute |
-|--------|-----------------|
-| Create composite task | Anyone |
-| Claim task | Anyone (if task is `open`) |
-| View applications | Coordinator only |
-| Accept members | Coordinator only |
-| Apply | Anyone with skills profile |
-| Complete sub-task | Assigned member only |
-| View workspace | Team members only |
+| Azione | Chi può eseguirla |
+|--------|-------------------|
+| Creare task composito | Chiunque |
+| Reclamare task | Chiunque (se task è `open`) |
+| Vedere candidature | Solo coordinatore |
+| Accettare membri | Solo coordinatore |
+| Candidarsi | Chiunque con profilo skills |
+| Completare sub-task | Solo membro assegnato |
+| Vedere workspace | Solo membri della squadra |
 
 ### Privacy
 
-- ✅ **Private applications**: Only coordinator sees applications
-- ✅ **Private workspace**: Only team members access channel
-- ✅ **Public skills**: Skills profiles visible to all (needed for matching)
+- ✅ **Candidature private**: Solo il coordinatore vede le candidature
+- ✅ **Workspace privato**: Solo membri della squadra accedono al canale
+- ✅ **Skills pubbliche**: I profili skills sono visibili a tutti (necessario per matching)
 
 ---
 
-## 📊 Metrics and Statistics
+## 📊 Metriche e Statistiche
 
-### Node Profile
+### Profilo Nodo
 
-Each profile tracks:
-- `completed_tasks`: Number of sub-tasks completed
-- `team_participations`: Number of teams joined
-- `coordinator_count`: Times as coordinator
+Ogni profilo tracks:
+- `completed_tasks`: Numero di sub-tasks completati
+- `team_participations`: Numero di squadre di cui ha fatto parte
+- `coordinator_count`: Volte che è stato coordinatore
 
-### Composite Task
+### Task Composito
 
-Statistics:
-- Average time for team formation
-- Average skill match of members
-- Completion rate
-- Total rewards distributed
+Statistiche:
+- Tempo medio per formazione squadra
+- Skill match medio dei membri
+- Tasso di completamento
+- Reward totale distribuito
 
 ---
 
-## 🚀 Advanced Use Cases
+## 🚀 Casi d'Uso Avanzati
 
-### 1. Auto-Formation Based on Reputation
+### 1. Auto-Formazione Basata su Reputazione
 
 ```python
-# Future enhancement: prioritize applications by reputation
+# Future enhancement: priorità candidature per reputazione
 for applicant in sorted(task.applicants, key=lambda x: get_reputation(x["node_id"]), reverse=True):
     if len(team) < max_size:
         accept_member(applicant["node_id"])
 ```
 
-### 2. Recursive Tasks
+### 2. Task Ricorsivi
 
 ```python
-# Future: Sub-tasks can themselves be composite tasks
+# Future: Sub-tasks possono essere a loro volta task compositi
 {
   "sub_tasks": [
     {
       "title": "Backend",
-      "type": "composite",  # ← This sub-task is composite!
+      "type": "composite",  # ← Questo sub-task è composito!
       "sub_tasks": [
         {"title": "Database Schema"},
         {"title": "API Endpoints"}
@@ -711,12 +710,12 @@ for applicant in sorted(task.applicants, key=lambda x: get_reputation(x["node_id
 ### 3. Skill Endorsement
 
 ```python
-# Future: Members can endorse others' skills
+# Future: Membri possono endorsare skills di altri membri
 {
   "node_id": "node-alice",
   "skills": ["python"],
   "endorsements": {
-    "python": ["node-bob", "node-carol", "node-dave"]  # 3 endorsements
+    "python": ["node-bob", "node-carol", "node-dave"]  # 3 endorsement
   }
 }
 ```
@@ -725,10 +724,10 @@ for applicant in sorted(task.applicants, key=lambda x: get_reputation(x["node_id
 
 ## 🧪 Testing
 
-### Quick Manual Test
+### Test Manuale Rapido
 
 ```bash
-# Terminal 1: Node Alice (coordinator)
+# Terminal 1: Nodo Alice (coordinatore)
 curl -X POST "http://localhost:8001/skills/profile?channel=dev" \
   -d '{"skills": ["python", "fastapi"]}'
 
@@ -737,98 +736,98 @@ curl -X POST "http://localhost:8001/tasks/composite/create?channel=dev" \
 
 curl -X POST "http://localhost:8001/tasks/composite/tc-xxx/claim?channel=dev"
 
-# Terminal 2: Node Bob (member)
+# Terminal 2: Nodo Bob (membro)
 curl -X POST "http://localhost:8002/skills/profile?channel=dev" \
   -d '{"skills": ["react", "typescript"]}'
 
 curl -X POST "http://localhost:8002/tasks/composite/tc-xxx/apply?channel=dev" \
-  -d '{"message": "React expert"}'
+  -d '{"message": "Esperto React"}'
 
-# Terminal 1: Alice accepts Bob
+# Terminal 1: Alice accetta Bob
 curl -X POST "http://localhost:8001/tasks/composite/tc-xxx/accept/node-bob?channel=dev"
 
-# Verify workspace created
+# Verifica workspace creato
 curl "http://localhost:8001/tasks/composite/tc-xxx?channel=dev"
 ```
 
-### Automated Testing
+### Test Automatizzato
 
-See `test_collaborative_teams.sh` for complete suite.
+Vedi `test_collaborative_teams.sh` per suite completa.
 
 ---
 
-## 📚 References
+## 📚 Riferimenti
 
-### Source Files
-- `app/collaborative_teams.py`: Core module with logic and algorithms
-- `app/main.py`: API endpoints (lines 1053-1500+)
-- `docs/COLLABORATIVE_TEAMS.md`: This documentation
+### File Sorgenti
+- `app/collaborative_teams.py`: Modulo core con logica e algoritmi
+- `app/main.py`: Endpoint API (linee 1053-1500+)
+- `docs/COLLABORATIVE_TEAMS.md`: Questa documentazione
 
-### Related Documentation
-- [AUTONOMOUS_ORGANISM.md](AUTONOMOUS_ORGANISM.md): Overall vision
-- [AUCTION_SYSTEM.md](AUCTION_SYSTEM.md): Auction system for tasks
-- [GOVERNANCE_SYSTEM.md](GOVERNANCE_SYSTEM.md): Decentralized governance
+### Documentazione Correlata
+- [AUTONOMOUS_ORGANISM_COMPLETE.md](AUTONOMOUS_ORGANISM_COMPLETE.md): Visione complessiva
+- [AUCTION_SYSTEM.md](AUCTION_SYSTEM.md): Sistema di aste per task
+- [GOVERNANCE_ARCHITECTURE.md](GOVERNANCE_ARCHITECTURE.md): Governance decentralizzata
 
 ---
 
 ## 💡 Best Practices
 
-### For Coordinators
+### Per Coordinatori
 
-1. **Clear descriptions**: Write detailed sub-task descriptions
-2. **Specific skills**: List precise skills (e.g. "fastapi" vs "python web")
-3. **Balanced rewards**: Distribute rewards proportional to complexity
-4. **Communication**: Use workspace for work coordination
-5. **Flexibility**: Accept members with skill match >= 50%
+1. **Descrizioni chiare**: Scrivi descrizioni dettagliate dei sub-tasks
+2. **Skills specifiche**: Elenca skills precise (es. "fastapi" vs "python web")
+3. **Reward equilibrato**: Distribuisci reward proporzionalmente alla complessità
+4. **Comunicazione**: Usa il workspace per coordinare il lavoro
+5. **Flessibilità**: Accetta membri con skill match >= 50%
 
-### For Members
+### Per Membri
 
-1. **Updated profile**: Keep skills up to date
-2. **Motivated applications**: Write meaningful application messages
-3. **Availability**: Only apply if you have time for the task
-4. **Communication**: Report problems or delays in workspace
-5. **Completion**: Mark sub-tasks as completed when finished
+1. **Profilo aggiornato**: Mantieni le skills aggiornate
+2. **Candidature motivate**: Scrivi messaggi di candidatura significativi
+3. **Disponibilità**: Candidati solo se hai tempo per il task
+4. **Comunicazione**: Segnala problemi o ritardi nel workspace
+5. **Completamento**: Marca i sub-tasks come completati quando finiti
 
-### For the Network
+### Per la Rete
 
-1. **Small tasks**: Prefer tasks with 3-5 sub-tasks (more manageable)
-2. **Realistic deadlines**: Give sufficient time to complete
-3. **Diverse skills**: Create tasks requiring complementary competencies
-4. **Iteration**: Use feedback to improve future tasks
+1. **Task piccoli**: Preferisci task con 3-5 sub-tasks (più gestibili)
+2. **Deadline realistiche**: Dai tempo sufficiente per completare
+3. **Skill diversificate**: Crea task che richiedono competenze complementari
+4. **Iterazione**: Usa feedback per migliorare task futuri
 
 ---
 
 ## 🔧 Troubleshooting
 
-### Issue: "Must create skills profile first"
-**Solution**: Create profile with `POST /skills/profile`
+### Problema: "Devi prima creare un profilo skills"
+**Soluzione**: Crea profilo con `POST /skills/profile`
 
-### Issue: "Team already full"
-**Solution**: Task reached `max_team_size`, look for other tasks
+### Problema: "Squadra già al completo"
+**Soluzione**: Il task ha raggiunto `max_team_size`, cerca altri task
 
-### Issue: "No required skills match"
-**Solution**: Update your skills profile to include required competencies
+### Problema: "Nessuna skill richiesta corrisponde"
+**Soluzione**: Aggiorna il tuo profilo skills per includere competenze richieste
 
-### Issue: "Only coordinator can accept members"
-**Solution**: Only who claimed the task can accept candidates
+### Problema: "Solo il coordinatore può accettare membri"
+**Soluzione**: Solo chi ha reclamato il task può accettare candidati
 
-### Issue: Workspace not created
-**Solution**: Workspace created only when team is complete (all sub-tasks assigned)
-
----
-
-## 🎓 Glossary
-
-- **Composite Task**: Task divided into sub-tasks with different skills
-- **Sub-Task**: Micro-task part of a composite task
-- **Coordinator**: Node that claimed task and manages team
-- **Skill Match**: Percentage overlap between node skills and required skills
-- **Workspace**: Temporary private channel for collaboration
-- **Coordinator Bonus**: Extra reward for coordinator
+### Problema: Workspace non creato
+**Soluzione**: Workspace si crea solo quando la squadra è completa (tutti sub-tasks assegnati)
 
 ---
 
-**Version**: 1.0.0  
-**Date**: 2025-10-02  
-**Author**: Synapse-NG Development Team  
-**Status**: ✅ Production-Ready
+## 🎓 Glossario
+
+- **Task Composito**: Task diviso in sub-tasks con skills diverse
+- **Sub-Task**: Micro-task parte di un task composito
+- **Coordinatore**: Nodo che ha reclamato il task e gestisce la squadra
+- **Skill Match**: Percentuale di overlap tra skills del nodo e skills richieste
+- **Workspace**: Canale temporaneo privato per la collaborazione
+- **Coordinator Bonus**: Reward extra per il coordinatore
+
+---
+
+**Versione**: 1.0.0  
+**Data**: 2025-10-02  
+**Autore**: Synapse-NG Development Team  
+**Stato**: ✅ Production-Ready

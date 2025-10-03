@@ -23,7 +23,7 @@ Each node is a sovereign "neuron" that collaborates to form a collective conscio
 
 ### Advanced Features
 - **[Self-Upgrade System](docs/SELF_UPGRADE_SYSTEM.md)** - Autonomous code evolution with WASM sandboxing
-- **[Phase 7: Network Singularity](docs/PHASE_7_NETWORK_SINGULARITY.md)** - AI-powered autonomous code generation (optional)
+- **[Network Singularity](docs/PHASE_7_NETWORK_SINGULARITY.md)** - AI-powered autonomous code generation (optional)
 - **[AI Agent](docs/AI_AGENT.md)** - Intelligent agent capabilities (optional)
 - **[AI Setup Guide](docs/AI_SETUP.md)** - How to enable optional AI features ⚠️ **AI is optional**
 - **[Collaborative Teams](docs/COLLABORATIVE_TEAMS.md)** - Temporary squads/guilds for complex tasks
