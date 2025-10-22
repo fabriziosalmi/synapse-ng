@@ -357,7 +357,7 @@ network_state = {
                     "tags": {"type": "list[string]", "required": False, "default": []},
                     "description": {"type": "string", "required": False, "default": ""},
                     "assignee": {"type": "string", "required": False, "default": None},
-                    "status": {"type": "enum", "required": False, "values": ["auction_open", "auction_closed", "claimed", "in_progress", "completed"], "default": "auction_open"},
+                    "status": {"type": "enum", "required": False, "values": ["open", "auction_open", "auction_closed", "claimed", "in_progress", "completed"], "default": "open"},
                     "required_tools": {"type": "list[string]", "required": False, "default": []},  # Common tools necessari per questo task
                     "auction": {
                         "type": "object",
