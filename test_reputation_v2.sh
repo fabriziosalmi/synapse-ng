@@ -115,14 +115,15 @@ test_specialized_gain() {
     print_info "Reputazione iniziale contributor: $total_before"
     
     # Crea task con tag multipli
-    print_info "Creazione task con tag: [python, api, backend]..."
+    print_info "Creazione task con tag: [python, api, backend] e reward 15..."
     local task_response=$(curl -s -X POST "http://localhost:$NODE1_PORT/tasks?channel=$CHANNEL" \
         -H "Content-Type: application/json" \
         -d '{
             "title": "Implementare API REST",
             "description": "Creare endpoint RESTful con documentazione OpenAPI",
             "reward": 15,
-            "tags": ["python", "api", "backend"]
+            "tags": ["python", "api", "backend"],
+            "schema_name": "task_v1"
         }')
     
     local task_id=$(echo "$task_response" | jq -r '.id')
@@ -253,7 +254,7 @@ test_contextual_voting() {
         -d '{
             "title": "Upgrade security protocols",
             "description": "Implementare nuovi protocolli di sicurezza",
-            "proposal_type": "protocol_upgrade",
+            "proposal_type": "config_change",
             "tags": ["python", "security"],
             "schema_name": "proposal_v1"
         }')
