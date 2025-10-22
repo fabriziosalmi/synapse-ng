@@ -154,31 +154,39 @@ test_specialized_gain() {
     # Verifica reputazione finale
     local rep_after=$(get_reputation $NODE2_PORT "$contributor_id")
     local total_after=$(echo "$rep_after" | jq '._total')
-    local tag_python=$(echo "$rep_after" | jq '.tags.python // 0')
-    local tag_api=$(echo "$rep_after" | jq '.tags.api // 0')
-    local tag_backend=$(echo "$rep_after" | jq '.tags.backend // 0')
+    local tag_python_after=$(echo "$rep_after" | jq '.tags.python // 0')
+    local tag_api_after=$(echo "$rep_after" | jq '.tags.api // 0')
+    local tag_backend_after=$(echo "$rep_after" | jq '.tags.backend // 0')
+    
+    # Calcola tag iniziali per verificare incremento
+    local tag_python_before=$(echo "$rep_before" | jq '.tags.python // 0')
+    local tag_api_before=$(echo "$rep_before" | jq '.tags.api // 0')
+    local tag_backend_before=$(echo "$rep_before" | jq '.tags.backend // 0')
     
     print_info "Reputazione finale:"
     echo "   _total: $total_after (era $total_before)"
-    echo "   tags.python: $tag_python"
-    echo "   tags.api: $tag_api"
-    echo "   tags.backend: $tag_backend"
+    echo "   tags.python: $tag_python_after (era $tag_python_before)"
+    echo "   tags.api: $tag_api_after (era $tag_api_before)"
+    echo "   tags.backend: $tag_backend_after (era $tag_backend_before)"
     
     # Verifica aspettative
     # Nota: Il sistema usa task_completion_reputation_reward dalla config (default: 10)
     # NON il reward SP del task. Questo separa economia da reputazione.
-    local delta=$((total_after - total_before))
+    local delta_total=$((total_after - total_before))
+    local delta_python=$((tag_python_after - tag_python_before))
+    local delta_api=$((tag_api_after - tag_api_before))
+    local delta_backend=$((tag_backend_after - tag_backend_before))
     local expected_reward=10  # Valore di default dalla config
     
-    if [ "$delta" -eq "$expected_reward" ] && [ "$tag_python" -eq "$expected_reward" ] && [ "$tag_api" -eq "$expected_reward" ] && [ "$tag_backend" -eq "$expected_reward" ]; then
+    if [ "$delta_total" -eq "$expected_reward" ] && [ "$delta_python" -eq "$expected_reward" ] && [ "$delta_api" -eq "$expected_reward" ] && [ "$delta_backend" -eq "$expected_reward" ]; then
         print_success "Guadagno specializzato verificato!"
         print_success "Ogni tag ha ricevuto $expected_reward punti reputazione"
         print_info "Nota: Punti reputazione sono indipendenti dal reward SP del task"
         return 0
     else
         print_error "Guadagno non corretto"
-        print_error "Atteso: delta=$expected_reward, python=$expected_reward, api=$expected_reward, backend=$expected_reward"
-        print_error "Ricevuto: delta=$delta, python=$tag_python, api=$tag_api, backend=$tag_backend"
+        print_error "Atteso: delta_total=$expected_reward, delta_python=$expected_reward, delta_api=$expected_reward, delta_backend=$expected_reward"
+        print_error "Ricevuto: delta_total=$delta_total, delta_python=$delta_python, delta_api=$delta_api, delta_backend=$delta_backend"
         return 1
     fi
 }
