@@ -332,12 +332,13 @@ async def common_tools_maintenance_loop():
 #### Esempio Chiamata Completa
 
 ```bash
-# 1. Crea task che richiede il tool
+# 1. Crea task V2 che richiede il tool (Common Tools richiede task_v2)
 curl -X POST "http://localhost:8001/tasks?channel=sviluppo_ui" \
   -d '{
     "title": "Analizzare traffico utenti",
     "required_tools": ["geolocation_api"],
-    "reward": 50
+    "reward": 50,
+    "schema_name": "task_v2"
   }'
 
 # 2. Claim il task
@@ -396,14 +397,15 @@ curl -X POST "http://localhost:8001/proposals?channel=analytics" \
 
 # 2. Vota e ratifica (governance flow)
 
-# 3. Crea task analytics che usa il tool
+# 3. Crea task V2 analytics che usa il tool
 curl -X POST "http://localhost:8001/tasks?channel=analytics" \
   -d '{
     "title": "Analisi geografica Q4 2025",
     "description": "Geolocal. tutti IP nei log Q4",
     "required_tools": ["maxmind_geoip"],
     "tags": ["analytics", "geo", "reporting"],
-    "reward": 200
+    "reward": 200,
+    "schema_name": "task_v2"
   }'
 
 # 4. Contributor esegue il tool
@@ -429,11 +431,12 @@ curl -X POST "http://localhost:8001/tools/maxmind_geoip/execute?channel=analytic
   "description": "SendGrid per email notifiche network"
 }
 
-# 2. Task per inviare newsletter
+# 2. Task V2 per inviare newsletter
 {
   "title": "Inviare newsletter mensile",
   "required_tools": ["sendgrid_api"],
-  "description": "Invia update a tutti i contributors attivi"
+  "description": "Invia update a tutti i contributors attivi",
+  "schema_name": "task_v2"
 }
 
 # 3. Esecuzione
@@ -461,10 +464,11 @@ curl -X POST "/tools/sendgrid_api/execute?channel=global&task_id={id}" \
   "description": "GitHub Personal Access Token per repo sync"
 }
 
-# Task: Sincronizza issues
+# Task V2: Sincronizza issues
 {
   "title": "Sync GitHub issues -> Synapse tasks",
-  "required_tools": ["github_token"]
+  "required_tools": ["github_token"],
+  "schema_name": "task_v2"
 }
 
 # Esecuzione

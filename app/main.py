@@ -148,7 +148,7 @@ class GossipPacket(BaseModel): channel_id: str; payload: str; sender_id: str; si
 class CreateTaskPayload(BaseModel):
     title: str
     reward: int = 0  # Ricompensa in Synapse Points (opzionale, deprecato con auction)
-    schema_name: str = "task_v1"  # Schema da usare per validazione
+    schema_name: str = "task_v2"  # ⚠️ SOLO task_v2 supportato (Common Tools richiede treasury)
     tags: List[str] = []  # Tags opzionali
     description: str = ""  # Descrizione opzionale
     required_tools: List[str] = []  # Common tools necessari per completare il task
@@ -1657,8 +1657,11 @@ async def create_task(payload: CreateTaskPayload, channel: str, funded_by: str =
         }
         task_data["status"] = "auction_open"
     else:
-        # Task tradizionale con reward fissa
+        # Task tradizionale con reward fissa (anche per task_v2 senza asta)
         task_data["reward"] = payload.reward
+        # Per task_v2 senza asta, forza status="open" invece del default "auction_open"
+        if payload.schema_name == "task_v2":
+            task_data["status"] = "open"
     
     # Valida contro schema
     is_valid, error_msg = validate_against_schema(task_data, payload.schema_name, schemas)

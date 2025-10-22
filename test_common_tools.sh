@@ -117,10 +117,10 @@ test_tool_acquisition() {
             -d '{
                 "title": "Finanziare tesoreria per test",
                 "reward": 200,
-                "schema_name": "task_v1"
+                "schema_name": "task_v2"
             }')
         
-        TASK_ID=$(echo "$TASK_RESPONSE" | jq -r '.task_id')
+        TASK_ID=$(echo "$TASK_RESPONSE" | jq -r '.id')
         echo "      Task creato: ${TASK_ID:0:8}..."
         
         wait_sync
@@ -276,10 +276,10 @@ test_tool_execution() {
             "description": "Task per test suite",
             "required_tools": ["test_geolocation_api"],
             "reward": 50,
-            "schema_name": "task_v1"
+            "schema_name": "task_v2"
         }')
     
-    TASK_ID=$(echo "$TASK_RESPONSE" | jq -r '.task_id')
+    TASK_ID=$(echo "$TASK_RESPONSE" | jq -r '.id')
     
     if [ "$TASK_ID" == "null" ] || [ -z "$TASK_ID" ]; then
         fail "Creazione task fallita"
