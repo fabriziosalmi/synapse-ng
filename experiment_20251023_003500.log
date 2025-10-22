@@ -1,0 +1,42 @@
+[2025-10-23 00:35:00] === 🧪 FIRST TASK EXPERIMENT - Enhanced Version ===
+[2025-10-23 00:35:00] === STEP 0: Verifica Nodi Attivi ===
+[2025-10-23 00:35:00] SUCCESS: Nodo su porta 8001 è online
+[2025-10-23 00:35:00] SUCCESS: Nodo su porta 8002 è online
+[2025-10-23 00:35:01] SUCCESS: Nodo su porta 8003 è online
+[2025-10-23 00:35:01] INFO: Attendo 15 secondi per stabilizzazione rete...
+[2025-10-23 00:35:16] === STEP 1: Capture Node IDs ===
+[2025-10-23 00:35:16] SUCCESS: Nodo 1 (Creator): JkN-5D2qxGet881U...
+[2025-10-23 00:35:16] SUCCESS: Nodo 2 (Contributor): OmHIcFIjwHYas_Fv...
+[2025-10-23 00:35:16] SUCCESS: Nodo 3 (Observer): U8ttU5tMbo9pwAfM...
+[2025-10-23 00:35:16] === STEP 2: Verifica Balance Iniziali ===
+[2025-10-23 00:35:16] === STEP 3: Crea Task con Reward (Nodo 1 = Creator) ===
+[2025-10-23 00:35:16] SUCCESS: Task creato: 8602bd02-6231-40...
+[2025-10-23 00:35:16] METRIC: Tempo creazione task: 57ms
+[2025-10-23 00:35:16] === STEP 4: Verifica Balance Frozen (Creator) ===
+[2025-10-23 00:35:31] SUCCESS: 10 SP correttamente congelati
+[2025-10-23 00:35:31] SUCCESS: ✅ CHECKPOINT 1: Tutti i nodi concordano sul balance frozen
+[2025-10-23 00:35:31] METRIC: Tempo propagazione task creation: 15217ms
+[2025-10-23 00:35:31] === STEP 5: Claim Task (Nodo 2 = Contributor) ===
+[2025-10-23 00:35:31] SUCCESS: Task visibile su Nodo 2
+[2025-10-23 00:35:31] SUCCESS: Task claimed dal Nodo 2
+[2025-10-23 00:35:31] METRIC: Tempo operazione claim: 39ms
+[2025-10-23 00:35:31] INFO: Attendo 15s per propagazione claim...
+[2025-10-23 00:35:46] SUCCESS: ✅ CHECKPOINT 2: Tutti i nodi concordano su status=claimed
+[2025-10-23 00:35:46] METRIC: Tempo propagazione claim: 15092ms
+[2025-10-23 00:35:46] === STEP 6: Progress e Complete Task (Nodo 2) ===
+[2025-10-23 00:35:46] SUCCESS: Task in progress
+[2025-10-23 00:35:52] SUCCESS: Task completato
+[2025-10-23 00:35:52] METRIC: Tempo operazione complete: 50ms
+[2025-10-23 00:35:52] INFO: Attendo 15s per propagazione complete e calcolo balance...
+[2025-10-23 00:36:07] === STEP 7: Verifica Transfer SP e Reputazione ===
+[2025-10-23 00:36:07] METRIC: Tempo propagazione complete: 15082ms
+[2025-10-23 00:36:07] === 📊 RISULTATI FINALI ===
+[2025-10-23 00:36:07] SUCCESS: Creator ha pagato 10 SP
+[2025-10-23 00:36:07] SUCCESS: Contributor ha ricevuto ~10 SP (meno tassa)
+[2025-10-23 00:36:07] SUCCESS: Contributor ha guadagnato reputazione (+10)
+[2025-10-23 00:36:07] SUCCESS: Consenso raggiunto su tutti i nodi
+[2025-10-23 00:36:07] === 🎉 ESPERIMENTO RIUSCITO! ===
+[2025-10-23 00:36:07] SUCCESS: ✅ CHECKPOINT 3: Transfer e reputazione verificati
+[2025-10-23 00:36:07] === 📈 ANALISI METRICHE ===
+[2025-10-23 00:36:07] SUCCESS: 📊 Metriche salvate in: metrics_20251023_003500.json
+[2025-10-23 00:36:07] SUCCESS: 📝 Log salvato in: experiment_20251023_003500.log

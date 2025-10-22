@@ -343,14 +343,21 @@ echo "   Contributor: +$CONTRIBUTOR_DELTA SP"
 
 # Calcola reputazioni
 echo ""
-echo "Calcolo reputazioni..."
+echo "Calcolo reputazioni (formato v2 con specializzazioni)..."
 
-REP1=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE1_ID\".reputation // 0")
-REP2=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE2_ID\".reputation // 0")
+REP1_FULL=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE1_ID\".reputation")
+REP2_FULL=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE2_ID\".reputation")
+
+REP1=$(echo "$REP1_FULL" | jq "._total // 0")
+REP2=$(echo "$REP2_FULL" | jq "._total // 0")
 
 echo "Reputazioni:"
 echo "   Creator (Nodo 1): $REP1"
 echo "   Contributor (Nodo 2): $REP2"
+
+# Mostra specializzazioni del contributor
+REP2_TAGS=$(echo "$REP2_FULL" | jq ".tags")
+echo "   Specializzazioni Contributor: $REP2_TAGS"
 
 METRIC_reputation1=$REP1
 METRIC_reputation2=$REP2
