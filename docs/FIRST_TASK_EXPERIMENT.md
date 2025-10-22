@@ -52,6 +52,40 @@ Non stiamo salvando il mondo. Stiamo testando il **core loop** del sistema:
 
 ## 🚀 Come Eseguire l'Esperimento
 
+### Opzione A: Script Automatizzato (Consigliato)
+
+**Script Standard:**
+```bash
+# Avvia la rete
+docker-compose up -d
+sleep 15
+
+# Esegui il test
+./test_first_task_experiment.sh
+```
+
+**Script Enhanced (con metriche dettagliate):**
+```bash
+# Avvia la rete
+docker-compose up -d
+sleep 15
+
+# Esegui il test con analisi avanzata
+./test_first_task_experiment_enhanced.sh
+
+# Analizza i risultati
+./analyze_experiment.py metrics_*.json
+```
+
+**Output dello script enhanced:**
+- Log dettagliato: `experiment_*.log`
+- Metriche JSON: `metrics_*.json`
+- Timing preciso al millisecondo
+- Tabelle formattate con analisi economica
+- Report markdown generato automaticamente
+
+### Opzione B: Esecuzione Manuale (Passo-passo)
+
 ### Step 1: Avvia la Rete (3 nodi)
 
 ```bash
@@ -287,18 +321,101 @@ Il contributore vota anonimamente su una proposta usando zero-knowledge proof.
 
 ## 📊 Metriche da Raccogliere
 
-### Performance
+### Automatizzate (Script Enhanced)
+
+Lo script `test_first_task_experiment_enhanced.sh` raccoglie automaticamente:
+
+**Timing Metrics:**
+- Task creation time (ms)
+- Task propagation time (ms)
+- Claim operation time (ms)
+- Claim propagation time (ms)
+- Complete operation time (ms)
+- Complete propagation time (ms)
+- Total experiment duration (ms)
+
+**Economic Metrics:**
+- Creator initial/final balance
+- Contributor initial/final balance
+- SP deltas (creator and contributor)
+- Tax collected by treasury
+- Contributor reputation gain
+- SP transfer efficiency (%)
+
+**Consensus Metrics:**
+- Balance consensus (boolean)
+- Status consensus (boolean)
+- Checkpoint results (PASS/FAIL)
+- Node-by-node comparison
+
+### Analisi Post-Esperimento
+
+Usa lo script `analyze_experiment.py` per generare:
+
+```bash
+./analyze_experiment.py metrics_20251022_143022.json
+```
+
+**Output:**
+1. **Terminal**: Report colorato con tabelle formattate
+2. **Markdown**: Report completo in `analysis_report.md`
+3. **Raccomandazioni**: Suggerimenti basati sui risultati
+
+**Esempio di analisi generata:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     TIMING METRICS                              │
+├─────────────────────────────────────────────────────────────────┤
+│ Task Creation Time                                    245 ms    │
+│ Task Propagation Time                                8532 ms    │
+│ Claim Operation Time                                  187 ms    │
+│ Claim Propagation Time                               7891 ms    │
+│ Complete Operation Time                               203 ms    │
+│ Complete Propagation Time                            9124 ms    │
+│ Total Experiment Duration                           45782 ms    │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   ECONOMIC METRICS                              │
+├─────────────────────────────────────────────────────────────────┤
+│ Creator Initial Balance                              1000 SP    │
+│ Creator Final Balance                                 990 SP    │
+│ Creator Delta                                         -10 SP    │
+│ Contributor Initial Balance                          1000 SP    │
+│ Contributor Final Balance                            1010 SP    │
+│ Contributor Delta                                     +10 SP    │
+│ Tax Collected (Treasury)                                0 SP    │
+│ Contributor Reputation Gain                             10      │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   CONSENSUS METRICS                             │
+├─────────────────────────────────────────────────────────────────┤
+│ Balance Consensus                                       ✓ YES   │
+│ Status Consensus                                        ✓ YES   │
+│ Checkpoint 1 (Balance Frozen)                           PASS    │
+│ Checkpoint 2 (Task Claimed)                             PASS    │
+│ Checkpoint 3 (Reward Transfer)                          PASS    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Manuali (Opzionale)
+
+Se esegui manualmente, raccogli:
+
+**Performance:**
 - Tempo di propagazione del task (creation → visibilità su tutti i nodi)
 - Tempo di propagazione del claim
 - Tempo di propagazione del complete
 - Tempo totale dell'esperimento
 
-### Consenso
+**Consenso:**
 - Differenza di balance tra nodi (dovrebbe essere 0)
 - Differenza di reputation tra nodi (dovrebbe essere 0)
 - Numero di inconsistenze rilevate
 
-### Economiche
+**Economiche:**
 - SP iniziali vs finali (creator)
 - SP iniziali vs finali (contributore)
 - Tassa raccolta dalla treasury
