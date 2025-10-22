@@ -165,15 +165,19 @@ test_specialized_gain() {
     echo "   tags.backend: $tag_backend"
     
     # Verifica aspettative
+    # Nota: Il sistema usa task_completion_reputation_reward dalla config (default: 10)
+    # NON il reward SP del task. Questo separa economia da reputazione.
     local delta=$((total_after - total_before))
+    local expected_reward=10  # Valore di default dalla config
     
-    if [ "$delta" -eq 15 ] && [ "$tag_python" -eq 15 ] && [ "$tag_api" -eq 15 ] && [ "$tag_backend" -eq 15 ]; then
+    if [ "$delta" -eq "$expected_reward" ] && [ "$tag_python" -eq "$expected_reward" ] && [ "$tag_api" -eq "$expected_reward" ] && [ "$tag_backend" -eq "$expected_reward" ]; then
         print_success "Guadagno specializzato verificato!"
-        print_success "Ogni tag ha ricevuto 15 punti"
+        print_success "Ogni tag ha ricevuto $expected_reward punti reputazione"
+        print_info "Nota: Punti reputazione sono indipendenti dal reward SP del task"
         return 0
     else
         print_error "Guadagno non corretto"
-        print_error "Atteso: delta=15, python=15, api=15, backend=15"
+        print_error "Atteso: delta=$expected_reward, python=$expected_reward, api=$expected_reward, backend=$expected_reward"
         print_error "Ricevuto: delta=$delta, python=$tag_python, api=$tag_api, backend=$tag_backend"
         return 1
     fi
