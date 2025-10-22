@@ -151,6 +151,7 @@ class CreateTaskPayload(BaseModel):
     schema_name: str = "task_v1"  # Schema da usare per validazione
     tags: List[str] = []  # Tags opzionali
     description: str = ""  # Descrizione opzionale
+    required_tools: List[str] = []  # Common tools necessari per completare il task
     # Auction parameters (for task_v2 schema)
     enable_auction: bool = False  # Se True, usa meccanismo d'asta
     max_reward: int = 0  # Ricompensa massima per l'asta
@@ -175,6 +176,110 @@ class BidPayload(BaseModel):
     estimated_days: int  # Stima giorni per completamento
     
 state_lock = asyncio.Lock()
+
+# ========================================
+# Common Tools: Credential Encryption
+# ========================================
+
+def derive_channel_encryption_key(channel_id: str) -> bytes:
+    """
+    Deriva una chiave simmetrica da un channel_id usando HKDF.
+    
+    Questa funzione crea una chiave deterministica ma crittograficamente sicura
+    a partire dall'ID del canale. Tutti i nodi che conoscono il channel_id possono
+    derivare la stessa chiave, permettendo la crittografia/decrittografia condivisa.
+    
+    IMPORTANTE: In produzione, questo dovrebbe usare un segreto condiviso più robusto,
+    come una chiave derivata dal validator set o un threshold encryption scheme.
+    
+    Args:
+        channel_id: ID univoco del canale
+    
+    Returns:
+        Chiave simmetrica a 256 bit (32 bytes) per AESGCM
+    """
+    # Usa NODE_ID come salt per garantire unicità per deployment
+    # In produzione, considera un salt condiviso via governance
+    salt = NODE_ID.encode('utf-8')[:32].ljust(32, b'\x00')
+    
+    # Derive key usando HKDF con SHA256
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,  # 256 bit
+        salt=salt,
+        info=b'synapse-ng-common-tools-v1'
+    )
+    
+    return hkdf.derive(channel_id.encode('utf-8'))
+
+
+def encrypt_tool_credentials(credentials: str, channel_id: str) -> str:
+    """
+    Cripta le credenziali di uno strumento usando AESGCM.
+    
+    Le credenziali vengono criptate con una chiave derivata dal channel_id.
+    Questo permette a qualsiasi nodo del canale di decriptare le credenziali
+    quando necessario per eseguire operazioni autorizzate.
+    
+    Args:
+        credentials: Credenziali in chiaro (es. API key)
+        channel_id: ID del canale proprietario dello strumento
+    
+    Returns:
+        Credenziali criptate in formato base64: "nonce:ciphertext"
+    """
+    # Deriva chiave dal channel_id
+    key = derive_channel_encryption_key(channel_id)
+    
+    # Inizializza AESGCM
+    aesgcm = AESGCM(key)
+    
+    # Genera nonce casuale (96 bit = 12 bytes per AESGCM)
+    nonce = os.urandom(12)
+    
+    # Cripta le credenziali
+    ciphertext = aesgcm.encrypt(nonce, credentials.encode('utf-8'), associated_data=None)
+    
+    # Combina nonce + ciphertext e codifica in base64
+    encrypted_data = nonce + ciphertext
+    return base64.b64encode(encrypted_data).decode('utf-8')
+
+
+def decrypt_tool_credentials(encrypted_credentials: str, channel_id: str) -> str:
+    """
+    Decripta le credenziali di uno strumento.
+    
+    ATTENZIONE: Questa funzione restituisce credenziali in chiaro in memoria.
+    Deve essere usata solo quando strettamente necessario e le credenziali
+    devono essere immediatamente pulite dalla memoria dopo l'uso.
+    
+    Args:
+        encrypted_credentials: Credenziali criptate (base64)
+        channel_id: ID del canale proprietario
+    
+    Returns:
+        Credenziali in chiaro
+    
+    Raises:
+        InvalidTag: Se la decrittografia fallisce (chiave errata o dati corrotti)
+    """
+    # Deriva chiave dal channel_id
+    key = derive_channel_encryption_key(channel_id)
+    
+    # Inizializza AESGCM
+    aesgcm = AESGCM(key)
+    
+    # Decodifica da base64
+    encrypted_data = base64.b64decode(encrypted_credentials.encode('utf-8'))
+    
+    # Separa nonce (primi 12 bytes) e ciphertext
+    nonce = encrypted_data[:12]
+    ciphertext = encrypted_data[12:]
+    
+    # Decripta
+    plaintext = aesgcm.decrypt(nonce, ciphertext, associated_data=None)
+    
+    return plaintext.decode('utf-8')
 
 # Default network configuration (can be modified via governance)
 DEFAULT_CONFIG = {
@@ -223,7 +328,8 @@ network_state = {
                     "tags": {"type": "list[string]", "required": False, "default": []},
                     "description": {"type": "string", "required": False, "default": ""},
                     "assignee": {"type": "string", "required": False, "default": None},
-                    "status": {"type": "enum", "required": False, "values": ["open", "claimed", "in_progress", "completed"], "default": "open"}
+                    "status": {"type": "enum", "required": False, "values": ["open", "claimed", "in_progress", "completed"], "default": "open"},
+                    "required_tools": {"type": "list[string]", "required": False, "default": []}  # Common tools necessari per questo task
                 },
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat()
@@ -252,6 +358,7 @@ network_state = {
                     "description": {"type": "string", "required": False, "default": ""},
                     "assignee": {"type": "string", "required": False, "default": None},
                     "status": {"type": "enum", "required": False, "values": ["auction_open", "auction_closed", "claimed", "in_progress", "completed"], "default": "auction_open"},
+                    "required_tools": {"type": "list[string]", "required": False, "default": []},  # Common tools necessari per questo task
                     "auction": {
                         "type": "object",
                         "required": False,
@@ -288,7 +395,8 @@ for channel in subscribed_channels:
             "treasury_balance": 0,
             "composite_tasks": {},  # Task compositi
             "team_announcements": {},  # Annunci di ricerca membri
-            "node_skills": {}  # Profili skills dei nodi
+            "node_skills": {},  # Profili skills dei nodi
+            "common_tools": {}  # Strumenti comuni finanziati dalla tesoreria
         }
 known_peers = set()
 
@@ -889,6 +997,245 @@ async def get_treasury_balance(channel_id: str):
     return {
         "channel_id": channel_id,
         "treasury_balance": treasuries[channel_id]
+    }
+
+# ========================================
+# Common Tools Endpoints
+# ========================================
+
+@app.post("/tools/{tool_id}/execute", status_code=200)
+async def execute_common_tool(
+    tool_id: str,
+    channel: str,
+    task_id: str,
+    tool_params: dict = {}
+):
+    """
+    Esegue un Common Tool in modo sicuro.
+    
+    SECURITY CRITICAL ENDPOINT
+    
+    Questo endpoint permette l'esecuzione di strumenti comuni (es. chiamate API esterne)
+    usando credenziali criptate. Implementa controlli rigorosi di sicurezza:
+    
+    1. AUTENTICAZIONE: Verifica che il chiamante sia l'assignee del task
+    2. AUTORIZZAZIONE: Verifica che il task richieda effettivamente il tool
+    3. STATUS CHECK: Verifica che il tool sia "active" e il task "in_progress"
+    4. DECRYPTION: Decripta le credenziali SOLO in memoria temporanea
+    5. EXECUTION: Esegue la logica specifica del tool
+    6. CLEANUP: Pulisce immediatamente le credenziali dalla memoria
+    
+    Args:
+        tool_id: Identificatore dello strumento da eseguire
+        channel: Canale proprietario dello strumento
+        task_id: ID del task che richiede l'esecuzione
+        tool_params: Parametri specifici per l'esecuzione (es. query, filters, etc.)
+    
+    Returns:
+        Risultato dell'esecuzione dello strumento (tool-specific)
+    
+    Example Request:
+        POST /tools/geolocation_api/execute?channel=sviluppo_ui&task_id=abc123
+        Body: {"ip_address": "8.8.8.8"}
+    
+    Example Response:
+        {
+            "success": true,
+            "tool_id": "geolocation_api",
+            "result": {
+                "country": "United States",
+                "city": "Mountain View",
+                "latitude": 37.4056,
+                "longitude": -122.0775
+            },
+            "executed_at": "2025-10-24T12:00:00Z"
+        }
+    """
+    logging.info(f"🔒 Richiesta esecuzione tool '{tool_id}' per task '{task_id[:8]}...' nel canale '{channel}'")
+    
+    # === VALIDAZIONE PARAMETRI ===
+    if not tool_id or not channel or not task_id:
+        raise HTTPException(400, "tool_id, channel e task_id sono obbligatori")
+    
+    async with state_lock:
+        # === VERIFICA ESISTENZA CANALE ===
+        if channel not in network_state:
+            raise HTTPException(404, f"Canale '{channel}' non trovato")
+        
+        channel_data = network_state[channel]
+        
+        # === VERIFICA ESISTENZA TOOL ===
+        common_tools = channel_data.get("common_tools", {})
+        if tool_id not in common_tools:
+            raise HTTPException(404, f"Tool '{tool_id}' non trovato nel canale '{channel}'")
+        
+        tool_data = common_tools[tool_id]
+        
+        # === VERIFICA STATUS TOOL ===
+        if tool_data.get("status") != "active":
+            raise HTTPException(403, f"Tool '{tool_id}' non è attivo (status: {tool_data.get('status')})")
+        
+        # === VERIFICA ESISTENZA TASK ===
+        tasks = channel_data.get("tasks", {})
+        if task_id not in tasks:
+            raise HTTPException(404, f"Task '{task_id}' non trovato nel canale '{channel}'")
+        
+        task = tasks[task_id]
+        
+        # === AUTENTICAZIONE: Verifica assignee ===
+        # NOTE: In produzione, questo dovrebbe verificare una firma crittografica
+        # Per ora, accettiamo NODE_ID come identificativo dell'assignee
+        if task.get("assignee") != NODE_ID:
+            raise HTTPException(403, f"Accesso negato: solo l'assignee del task può eseguire i suoi tools (assignee: {task.get('assignee', 'none')[:16]}...)")
+        
+        # === VERIFICA STATUS TASK ===
+        if task.get("status") not in ["claimed", "in_progress"]:
+            raise HTTPException(403, f"Il task non è in uno stato eseguibile (status: {task.get('status')})")
+        
+        # === AUTORIZZAZIONE: Verifica required_tools ===
+        required_tools = task.get("required_tools", [])
+        if tool_id not in required_tools:
+            raise HTTPException(403, f"Il task non richiede il tool '{tool_id}' (required_tools: {required_tools})")
+        
+        # === DECRYPTION: Recupera credenziali (IN MEMORIA TEMPORANEA) ===
+        encrypted_credentials = tool_data.get("encrypted_credentials")
+        if not encrypted_credentials:
+            raise HTTPException(500, f"Tool '{tool_id}' non ha credenziali configurate")
+        
+        try:
+            # ATTENZIONE: credenziali in chiaro in memoria!
+            credentials_plain = decrypt_tool_credentials(encrypted_credentials, channel)
+            
+            logging.info(f"   ✅ Credenziali decriptate per tool '{tool_id}'")
+            
+            # === EXECUTION: Logica specifica per tipo di tool ===
+            tool_type = tool_data.get("type", "api_key")
+            result = None
+            
+            if tool_type == "api_key":
+                # Esegui chiamata API usando le credenziali
+                result = await execute_api_key_tool(
+                    tool_id=tool_id,
+                    api_key=credentials_plain,
+                    tool_params=tool_params
+                )
+            elif tool_type == "oauth_token":
+                # Esegui chiamata OAuth
+                result = await execute_oauth_tool(
+                    tool_id=tool_id,
+                    oauth_token=credentials_plain,
+                    tool_params=tool_params
+                )
+            elif tool_type == "webhook":
+                # Esegui webhook
+                result = await execute_webhook_tool(
+                    tool_id=tool_id,
+                    webhook_url=credentials_plain,
+                    tool_params=tool_params
+                )
+            else:
+                raise HTTPException(400, f"Tipo di tool non supportato: {tool_type}")
+            
+            # === CLEANUP: Pulisci credenziali dalla memoria ===
+            credentials_plain = None  # Permetti garbage collection
+            del credentials_plain
+            
+            logging.info(f"   ✅ Tool '{tool_id}' eseguito con successo per task '{task_id[:8]}...'")
+            
+            return {
+                "success": True,
+                "tool_id": tool_id,
+                "tool_type": tool_type,
+                "task_id": task_id,
+                "channel": channel,
+                "result": result,
+                "executed_at": datetime.now(timezone.utc).isoformat()
+            }
+        
+        except InvalidTag:
+            raise HTTPException(500, "Errore di decrittografia: credenziali corrotte o chiave errata")
+        except Exception as e:
+            # Assicura cleanup anche in caso di errore
+            try:
+                credentials_plain = None
+                del credentials_plain
+            except:
+                pass
+            
+            logging.error(f"   ❌ Errore durante esecuzione tool '{tool_id}': {e}")
+            raise HTTPException(500, f"Errore durante esecuzione tool: {str(e)}")
+
+
+# === Helper functions per esecuzione tool-specific ===
+
+async def execute_api_key_tool(tool_id: str, api_key: str, tool_params: dict) -> dict:
+    """
+    Esegue un tool di tipo api_key.
+    
+    Implementazione dimostrativa. In produzione, questo dovrebbe:
+    - Usare httpx per chiamate HTTP asincrone
+    - Implementare retry logic
+    - Gestire rate limiting
+    - Validare parametri specifici del tool
+    """
+    logging.info(f"      🔌 Esecuzione API call per tool '{tool_id}'")
+    
+    # Esempio: tool_id specifici con logiche dedicate
+    if tool_id == "geolocation_api":
+        # Simula chiamata API di geolocalizzazione
+        ip_address = tool_params.get("ip_address", "0.0.0.0")
+        
+        # In produzione: async with httpx.AsyncClient() as client:
+        #     response = await client.get(f"https://api.service.com/lookup?ip={ip_address}&key={api_key}")
+        #     return response.json()
+        
+        # Simulazione per demo
+        return {
+            "ip": ip_address,
+            "country": "United States",
+            "city": "Mountain View",
+            "latitude": 37.4056,
+            "longitude": -122.0775,
+            "timezone": "America/Los_Angeles",
+            "simulated": True  # Rimosso in produzione
+        }
+    
+    # Tool generico: restituisci info parametri
+    return {
+        "message": f"Tool '{tool_id}' eseguito",
+        "parameters": tool_params,
+        "note": "Implementazione generica - estendi execute_api_key_tool() per logica specifica"
+    }
+
+
+async def execute_oauth_tool(tool_id: str, oauth_token: str, tool_params: dict) -> dict:
+    """
+    Esegue un tool di tipo oauth_token.
+    """
+    logging.info(f"      🔑 Esecuzione OAuth call per tool '{tool_id}'")
+    
+    # Implementazione specifica per tool OAuth
+    return {
+        "message": f"OAuth tool '{tool_id}' eseguito",
+        "parameters": tool_params
+    }
+
+
+async def execute_webhook_tool(tool_id: str, webhook_url: str, tool_params: dict) -> dict:
+    """
+    Esegue un tool di tipo webhook.
+    """
+    logging.info(f"      📡 Esecuzione Webhook per tool '{tool_id}'")
+    
+    # In produzione: POST al webhook_url con tool_params
+    # async with httpx.AsyncClient() as client:
+    #     response = await client.post(webhook_url, json=tool_params)
+    #     return response.json()
+    
+    return {
+        "message": f"Webhook '{tool_id}' eseguito",
+        "parameters": tool_params,
+        "simulated": True
     }
 
 @app.get("/treasuries")
@@ -3621,6 +3968,214 @@ def execute_update_schema(params: dict) -> dict:
     
     return result
 
+def execute_acquire_common_tool(params: dict) -> dict:
+    """
+    Esegue l'acquisizione di un nuovo strumento comune (Common Tool).
+    
+    Questa operazione:
+    1. Verifica che la tesoreria del canale abbia fondi sufficienti
+    2. Sottrae il costo del primo mese dalla tesoreria
+    3. Cripta le credenziali fornite
+    4. Aggiunge lo strumento al dict common_tools del canale
+    
+    Args:
+        params: {
+            "channel": str,  # Canale proprietario
+            "tool_id": str,  # Identificatore univoco dello strumento
+            "description": str,  # Descrizione dello strumento
+            "type": str,  # Tipo: "api_key", "oauth_token", "webhook", etc.
+            "monthly_cost_sp": int,  # Costo mensile in Synapse Points
+            "credentials_to_encrypt": str  # Credenziali in chiaro (saranno criptate)
+        }
+    
+    Returns:
+        dict con risultato dell'operazione
+    
+    Example:
+        params = {
+            "channel": "sviluppo_ui",
+            "tool_id": "geolocation_api",
+            "description": "API per geolocalizzare indirizzi IP",
+            "type": "api_key",
+            "monthly_cost_sp": 100,
+            "credentials_to_encrypt": "sk_live_abc123..."
+        }
+    """
+    channel = params.get("channel")
+    tool_id = params.get("tool_id")
+    description = params.get("description", "")
+    tool_type = params.get("type", "api_key")
+    monthly_cost_sp = params.get("monthly_cost_sp", 0)
+    credentials_plain = params.get("credentials_to_encrypt", "")
+    
+    logging.info(f"🔧 Esecuzione acquire_common_tool: {tool_id} per canale {channel}")
+    
+    # Validazione parametri
+    if not channel or channel not in network_state:
+        error_msg = f"Canale '{channel}' non trovato"
+        logging.error(f"❌ Acquisizione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    if not tool_id:
+        error_msg = "tool_id è obbligatorio"
+        logging.error(f"❌ Acquisizione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    if not credentials_plain:
+        error_msg = "credentials_to_encrypt è obbligatorio"
+        logging.error(f"❌ Acquisizione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    # Verifica che lo strumento non esista già
+    channel_data = network_state[channel]
+    if tool_id in channel_data.get("common_tools", {}):
+        error_msg = f"Tool '{tool_id}' già esistente nel canale '{channel}'"
+        logging.error(f"❌ Acquisizione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    # Verifica fondi nella tesoreria
+    treasuries = calculate_treasuries(network_state)
+    current_balance = treasuries.get(channel, 0)
+    
+    if current_balance < monthly_cost_sp:
+        error_msg = f"Tesoreria insufficiente. Canale '{channel}' ha {current_balance} SP, richiesti {monthly_cost_sp} SP per il primo mese"
+        logging.error(f"❌ Acquisizione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    # Sottrai il costo del primo mese dalla tesoreria
+    # (Nota: la tesoreria viene ricalcolata, quindi modifichiamo il balance direttamente)
+    channel_data["treasury_balance"] = current_balance - monthly_cost_sp
+    
+    # Cripta le credenziali
+    try:
+        encrypted_credentials = encrypt_tool_credentials(credentials_plain, channel)
+    except Exception as e:
+        error_msg = f"Errore durante la crittografia: {str(e)}"
+        logging.error(f"❌ Acquisizione tool fallita: {error_msg}")
+        # Rollback tesoreria
+        channel_data["treasury_balance"] = current_balance
+        return {"success": False, "error": error_msg}
+    
+    # Crea struttura dello strumento
+    now = datetime.now(timezone.utc).isoformat()
+    tool_data = {
+        "tool_id": tool_id,
+        "description": description,
+        "type": tool_type,
+        "status": "active",
+        "monthly_cost_sp": monthly_cost_sp,
+        "owner_channel": channel,
+        "created_at": now,
+        "last_payment_at": now,
+        "encrypted_credentials": encrypted_credentials
+    }
+    
+    # Aggiungi lo strumento al canale
+    if "common_tools" not in channel_data:
+        channel_data["common_tools"] = {}
+    
+    channel_data["common_tools"][tool_id] = tool_data
+    
+    result = {
+        "success": True,
+        "channel": channel,
+        "tool_id": tool_id,
+        "type": tool_type,
+        "monthly_cost_sp": monthly_cost_sp,
+        "first_payment_deducted": monthly_cost_sp,
+        "treasury_balance_after": channel_data["treasury_balance"],
+        "status": "active"
+    }
+    
+    logging.info(f"✅ Tool acquisito: {tool_id} (canale: {channel}, costo mensile: {monthly_cost_sp} SP)")
+    logging.info(f"   Tesoreria dopo acquisizione: {channel_data['treasury_balance']} SP")
+    
+    return result
+
+def execute_deprecate_common_tool(params: dict) -> dict:
+    """
+    Esegue la deprecazione di uno strumento comune esistente.
+    
+    Questa operazione:
+    1. Trova lo strumento nel canale specificato
+    2. Cambia lo status a "deprecated"
+    3. Interrompe i pagamenti mensili futuri
+    
+    Le credenziali rimangono nel sistema (criptate) per audit,
+    ma lo strumento non sarà più utilizzabile né pagato.
+    
+    Args:
+        params: {
+            "channel": str,  # Canale proprietario
+            "tool_id": str  # Identificatore dello strumento da deprecare
+        }
+    
+    Returns:
+        dict con risultato dell'operazione
+    
+    Example:
+        params = {
+            "channel": "sviluppo_ui",
+            "tool_id": "geolocation_api"
+        }
+    """
+    channel = params.get("channel")
+    tool_id = params.get("tool_id")
+    
+    logging.info(f"🗑️  Esecuzione deprecate_common_tool: {tool_id} nel canale {channel}")
+    
+    # Validazione parametri
+    if not channel or channel not in network_state:
+        error_msg = f"Canale '{channel}' non trovato"
+        logging.error(f"❌ Deprecazione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    if not tool_id:
+        error_msg = "tool_id è obbligatorio"
+        logging.error(f"❌ Deprecazione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    # Verifica che lo strumento esista
+    channel_data = network_state[channel]
+    common_tools = channel_data.get("common_tools", {})
+    
+    if tool_id not in common_tools:
+        error_msg = f"Tool '{tool_id}' non trovato nel canale '{channel}'"
+        logging.error(f"❌ Deprecazione tool fallita: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
+    tool_data = common_tools[tool_id]
+    
+    # Verifica che non sia già deprecato
+    if tool_data.get("status") == "deprecated":
+        logging.info(f"   ℹ️  Tool '{tool_id}' già deprecato")
+        return {
+            "success": True,
+            "channel": channel,
+            "tool_id": tool_id,
+            "message": "Tool già deprecato",
+            "status": "deprecated"
+        }
+    
+    # Depreca lo strumento
+    previous_status = tool_data.get("status")
+    tool_data["status"] = "deprecated"
+    tool_data["deprecated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    result = {
+        "success": True,
+        "channel": channel,
+        "tool_id": tool_id,
+        "previous_status": previous_status,
+        "new_status": "deprecated",
+        "message": "Pagamenti mensili interrotti. Strumento non più utilizzabile."
+    }
+    
+    logging.info(f"✅ Tool deprecato: {tool_id} (canale: {channel})")
+    logging.info(f"   Status: {previous_status} → deprecated")
+    
+    return result
+
 def dispatch_command(command: dict) -> dict:
     """
     Dispatcher per l'esecuzione dei comandi.
@@ -3650,6 +4205,10 @@ def dispatch_command(command: dict) -> dict:
         return execute_merge_channels(params)
     elif operation == "update_schema":
         return execute_update_schema(params)
+    elif operation == "acquire_common_tool":
+        return execute_acquire_common_tool(params)
+    elif operation == "deprecate_common_tool":
+        return execute_deprecate_common_tool(params)
     else:
         error_msg = f"Operazione '{operation}' non riconosciuta"
         logging.error(f"❌ {error_msg}")
@@ -4209,6 +4768,99 @@ async def reputation_decay_loop():
             
         except Exception as e:
             logging.error(f"❌ Errore in reputation decay loop: {e}")
+            await asyncio.sleep(60)  # Riprova dopo 1 minuto in caso di errore
+
+async def common_tools_maintenance_loop():
+    """
+    Background task per la manutenzione dei Common Tools.
+    
+    Esegue una volta al giorno (ogni 24 ore) e:
+    - Controlla ogni tool con status "active"
+    - Verifica se è passato un mese da last_payment_at
+    - Se sì, tenta di addebitare monthly_cost_sp dalla tesoreria
+    - Se fondi insufficienti, imposta status a "inactive_funding_issue"
+    - Se fondi sufficienti, aggiorna last_payment_at e sottrae dalla tesoreria
+    """
+    MAINTENANCE_INTERVAL = 24 * 60 * 60  # 24 ore in secondi
+    PAYMENT_CYCLE_DAYS = 30  # Ciclo di pagamento mensile
+    
+    logging.info("🔧 Common Tools maintenance loop avviato (intervallo: 24h, ciclo pagamento: 30 giorni)")
+    
+    while True:
+        try:
+            await asyncio.sleep(MAINTENANCE_INTERVAL)
+            
+            logging.info("🛠️  Esecuzione manutenzione Common Tools...")
+            
+            async with state_lock:
+                now = datetime.now(timezone.utc)
+                tools_checked = 0
+                payments_processed = 0
+                tools_suspended = 0
+                
+                # Itera su tutti i canali
+                for channel_id, channel_data in network_state.items():
+                    if channel_id == "global":
+                        continue
+                    
+                    common_tools = channel_data.get("common_tools", {})
+                    
+                    # Itera su tutti gli strumenti del canale
+                    for tool_id, tool_data in common_tools.items():
+                        tools_checked += 1
+                        
+                        # Processa solo strumenti attivi
+                        if tool_data.get("status") != "active":
+                            continue
+                        
+                        # Verifica se è passato un mese dall'ultimo pagamento
+                        last_payment_str = tool_data.get("last_payment_at")
+                        if not last_payment_str:
+                            logging.warning(f"   ⚠️  Tool '{tool_id}' senza last_payment_at, skip")
+                            continue
+                        
+                        last_payment = datetime.fromisoformat(last_payment_str)
+                        days_since_payment = (now - last_payment).days
+                        
+                        if days_since_payment < PAYMENT_CYCLE_DAYS:
+                            # Non ancora tempo di pagare
+                            continue
+                        
+                        # È tempo di pagare!
+                        monthly_cost = tool_data.get("monthly_cost_sp", 0)
+                        
+                        logging.info(f"   💰 Tool '{tool_id}' richiede pagamento: {monthly_cost} SP (ultimo pagamento: {days_since_payment} giorni fa)")
+                        
+                        # Calcola tesoreria corrente
+                        treasuries = calculate_treasuries(network_state)
+                        current_balance = treasuries.get(channel_id, 0)
+                        
+                        # Verifica fondi sufficienti
+                        if current_balance < monthly_cost:
+                            # Fondi insufficienti: sospendi strumento
+                            tool_data["status"] = "inactive_funding_issue"
+                            tool_data["suspended_at"] = now.isoformat()
+                            tool_data["suspension_reason"] = f"Tesoreria insufficiente: {current_balance} SP disponibili, {monthly_cost} SP richiesti"
+                            tools_suspended += 1
+                            
+                            logging.warning(f"   ⚠️  Tool '{tool_id}' sospeso per fondi insufficienti (tesoreria: {current_balance} SP, richiesti: {monthly_cost} SP)")
+                        else:
+                            # Fondi sufficienti: processa pagamento
+                            # Sottrai dalla tesoreria (modifica diretta del balance)
+                            channel_data["treasury_balance"] = current_balance - monthly_cost
+                            
+                            # Aggiorna last_payment_at
+                            tool_data["last_payment_at"] = now.isoformat()
+                            
+                            payments_processed += 1
+                            
+                            logging.info(f"   ✅ Pagamento processato per tool '{tool_id}': {monthly_cost} SP")
+                            logging.info(f"      Tesoreria canale '{channel_id}': {current_balance} SP → {channel_data['treasury_balance']} SP")
+            
+            logging.info(f"🎯 Manutenzione completata: {tools_checked} tools controllati, {payments_processed} pagamenti processati, {tools_suspended} tools sospesi")
+            
+        except Exception as e:
+            logging.error(f"❌ Errore in common tools maintenance loop: {e}")
             await asyncio.sleep(60)  # Riprova dopo 1 minuto in caso di errore
 
 def calculate_proposal_outcome(proposal: dict, reputations: Dict[str, int]) -> dict:
@@ -5287,6 +5939,10 @@ async def on_startup():
     # Avvia reputation decay loop (reputazione dinamica con decadimento)
     asyncio.create_task(reputation_decay_loop())
     logging.info("🕒 Reputation decay loop avviato (intervallo: 24h)")
+    
+    # Avvia common tools maintenance loop (pagamenti mensili automatici)
+    asyncio.create_task(common_tools_maintenance_loop())
+    logging.info("🛠️  Common tools maintenance loop avviato (intervallo: 24h)")
     
     # Inizializza AI Agent (se modello disponibile)
     model_path = os.getenv("AI_MODEL_PATH", "models/qwen3-0.6b.gguf")
