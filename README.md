@@ -1,5 +1,9 @@
 # Synapse-NG (Next Generation)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-required-blue.svg)](https://www.docker.com/)
+
 **A decentralized, scalable, and intelligent digital organism.**
 
 Synapse-NG is a fully decentralized peer-to-peer network that self-organizes like a living organism. There is no central authority, no mandatory server, no leader. Each node is an autonomous agent that collaborates to form a collective consciousness, make decisions, and accomplish tasks.
@@ -547,11 +551,12 @@ Result:
 Meritocracy prevails: the most experienced node has more influence!
 ```
 
-## � Documentation
+## 📖 Additional Documentation
 
 For detailed documentation on specific topics, see:
 
-- **[Governance Architecture](GOVERNANCE_ARCHITECTURE.md)** - Two-tier governance system with CRDT voting and Raft consensus
+- **[Security Considerations](docs/SECURITY.md)** - Threat model, security measures, and mitigation strategies
+- **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to Synapse-NG
 ## 🔮 Future Roadmap
 
 - [x] **Two-Tier Governance**: Validator set + Raft consensus
