@@ -118,9 +118,9 @@ sleep 15
 
 print_header "STEP 1: Capture Node IDs"
 
-NODE1_ID=$(curl -s http://localhost:8001/whoami | jq -r '.node_id')
-NODE2_ID=$(curl -s http://localhost:8002/whoami | jq -r '.node_id')
-NODE3_ID=$(curl -s http://localhost:8003/whoami | jq -r '.node_id')
+NODE1_ID=$(curl -s http://localhost:8001/state | jq -r '.global.nodes | keys[0]')
+NODE2_ID=$(curl -s http://localhost:8002/state | jq -r '.global.nodes | keys[0]')
+NODE3_ID=$(curl -s http://localhost:8003/state | jq -r '.global.nodes | keys[0]')
 
 if [ -z "$NODE1_ID" ] || [ "$NODE1_ID" = "null" ]; then
     print_error "Non riesco a ottenere NODE1_ID"
@@ -179,15 +179,15 @@ fi
 print_success "Task creato: ${TASK_ID:0:16}..."
 echo "   Titolo: Trovare il primo bug in Synapse-NG"
 echo "   Reward: 10 SP"
-echo "   Channel: $CHANNEL"
+echo "   Channel: dev_ui"
 
 CREATION_TIME=$((METRIC_task_creation_end - METRIC_task_creation_start))
 print_metric "Tempo creazione task: ${CREATION_TIME}ms"
 
 print_header "STEP 4: Verifica Balance Frozen (Creator)"
 
-echo "Attendo 15s per propagazione..."
-sleep 15
+echo "Attendo 10s per propagazione..."
+sleep 10
 
 METRIC_balance_check_start=$(get_timestamp_ms)
 
@@ -236,11 +236,11 @@ print_metric "Tempo propagazione task creation: ${PROPAGATION_TIME}ms"
 
 print_header "STEP 5: Claim Task (Nodo 2 = Contributor)"
 
-wait_for_condition "curl -s http://localhost:8002/state | jq -e '.$CHANNEL.tasks.\"$TASK_ID\"'" "Task visibile su Nodo 2" 30
+wait_for_condition "curl -s http://localhost:8002/state | jq -e '.dev_ui.tasks.\"$TASK_ID\"'" "Task visibile su Nodo 2" 30
 
 METRIC_claim_start=$(get_timestamp_ms)
 
-CLAIM_RESPONSE=$(curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/claim?channel=$CHANNEL")
+CLAIM_RESPONSE=$(curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/claim?channel=dev_ui")
 
 METRIC_claim_end=$(get_timestamp_ms)
 
@@ -252,15 +252,15 @@ CLAIM_TIME=$((METRIC_claim_end - METRIC_claim_start))
 print_metric "Tempo operazione claim: ${CLAIM_TIME}ms"
 
 echo ""
-print_info "Attendo 15s per propagazione claim..."
-sleep 15
+print_info "Attendo 10s per propagazione claim..."
+sleep 10
 
 METRIC_claim_propagation_check=$(get_timestamp_ms)
 
 # Verifica che tutti i nodi vedono il claim
-STATUS_NODE1=$(curl -s http://localhost:8001/state | jq -r ".$CHANNEL.tasks.\"$TASK_ID\".status")
-STATUS_NODE2=$(curl -s http://localhost:8002/state | jq -r ".$CHANNEL.tasks.\"$TASK_ID\".status")
-STATUS_NODE3=$(curl -s http://localhost:8003/state | jq -r ".$CHANNEL.tasks.\"$TASK_ID\".status")
+STATUS_NODE1=$(curl -s http://localhost:8001/state | jq -r ".dev_ui.tasks.\"$TASK_ID\".status")
+STATUS_NODE2=$(curl -s http://localhost:8002/state | jq -r ".dev_ui.tasks.\"$TASK_ID\".status")
+STATUS_NODE3=$(curl -s http://localhost:8003/state | jq -r ".dev_ui.tasks.\"$TASK_ID\".status")
 
 echo "Status task dopo claim:"
 echo "   Nodo 1: $STATUS_NODE1"
@@ -296,7 +296,7 @@ echo "Per questo test, simuliamo il completamento diretto."
 
 # Progress
 METRIC_progress_start=$(get_timestamp_ms)
-curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/progress?channel=$CHANNEL" > /dev/null
+curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/progress?channel=dev_ui" > /dev/null
 METRIC_progress_end=$(get_timestamp_ms)
 print_success "Task in progress"
 
@@ -304,7 +304,7 @@ sleep 5
 
 # Complete
 METRIC_complete_start=$(get_timestamp_ms)
-curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/complete?channel=$CHANNEL" > /dev/null
+curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/complete?channel=dev_ui" > /dev/null
 METRIC_complete_end=$(get_timestamp_ms)
 print_success "Task completato"
 
@@ -345,8 +345,9 @@ echo "   Contributor: +$CONTRIBUTOR_DELTA SP"
 echo ""
 echo "Calcolo reputazioni..."
 
-REP1=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE1_ID\".reputation // 0")
-REP2=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE2_ID\".reputation // 0")
+REP_FULL=$(curl -s http://localhost:8001/reputations)
+REP1=$(echo "$REP_FULL" | jq ".\"$NODE1_ID\" // 0")
+REP2=$(echo "$REP_FULL" | jq ".\"$NODE2_ID\" // 0")
 
 echo "Reputazioni:"
 echo "   Creator (Nodo 1): $REP1"

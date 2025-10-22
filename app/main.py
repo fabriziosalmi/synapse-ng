@@ -316,6 +316,10 @@ mdns_discovery_queue = asyncio.Queue()  # Queue per peer scoperti via mDNS
 async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "node_id": NODE_ID})
 
+@app.get("/whoami")
+async def whoami():
+    """Returns the local node's ID."""
+    return {"node_id": NODE_ID}
 
 # ========================================
 # Self-Upgrade Endpoints
@@ -820,7 +824,13 @@ async def get_state():
 
     # Add calculated values to nodes
     for node_id, node_data in state_copy["global"]["nodes"].items():
-        node_data["reputation"] = reputations.get(node_id, 0)
+        # Reputazione ora è un dict (formato v2)
+        reputation_dict = reputations.get(node_id, {
+            "_total": 0,
+            "_last_updated": datetime.now(timezone.utc).isoformat(),
+            "tags": {}
+        })
+        node_data["reputation"] = reputation_dict
         node_data["balance"] = balances.get(node_id, 0)
 
     # Add calculated treasury balances to channels
@@ -3789,22 +3799,64 @@ async def auction_processor_task():
             logging.error(f"❌ Errore nell'auction processor: {e}")
             await asyncio.sleep(30)
 
-def calculate_reputations(full_state: dict) -> Dict[str, int]:
-    """Calcola la reputazione di ogni nodo basata su task completati e voti."""
+def calculate_reputations(full_state: dict) -> Dict[str, dict]:
+    """
+    Calcola la reputazione di ogni nodo basata su task completati e voti.
+    
+    Versione v2 con supporto per specializzazioni basate su tag.
+    
+    Returns:
+        Dict[node_id, reputation_dict] dove reputation_dict ha formato:
+        {
+            "_total": int,
+            "_last_updated": str,
+            "tags": {
+                "tag1": int,
+                "tag2": int,
+                ...
+            }
+        }
+    """
     config = full_state.get("global", {}).get("config", DEFAULT_CONFIG)
     task_reward = config.get("task_completion_reputation_reward", 10)
     vote_reward = config.get("proposal_vote_reputation_reward", 1)
 
-    reputations = {node_id: 0 for node_id in full_state.get("global", {}).get("nodes", {})}
+    # Inizializza reputazioni con formato v2
+    reputations = {}
+    for node_id in full_state.get("global", {}).get("nodes", {}):
+        reputations[node_id] = {
+            "_total": 0,
+            "_last_updated": datetime.now(timezone.utc).isoformat(),
+            "tags": {}
+        }
+    
+    # Calcola reputazione da task completati (con specializzazioni)
     for channel_id, channel_data in full_state.items():
         if channel_id != "global":
             for task in channel_data.get("tasks", {}).values():
-                if task.get("status") == "completed" and task.get("assignee") in reputations:
-                    reputations[task["assignee"]] += task_reward
+                if task.get("status") == "completed":
+                    assignee = task.get("assignee")
+                    if assignee and assignee in reputations:
+                        # Ottieni tag del task
+                        task_tags = task.get("tags", [])
+                        
+                        # Aggiorna specializzazioni per ogni tag
+                        for tag in task_tags:
+                            if tag in reputations[assignee]["tags"]:
+                                reputations[assignee]["tags"][tag] += task_reward
+                            else:
+                                reputations[assignee]["tags"][tag] = task_reward
+                        
+                        # Aggiorna totale
+                        reputations[assignee]["_total"] += task_reward
+    
+    # Aggiungi reputazione da voti (senza specializzazione)
+    for channel_id, channel_data in full_state.items():
         for prop in channel_data.get("proposals", {}).values():
             for voter_id in prop.get("votes", {}):
                 if voter_id in reputations:
-                    reputations[voter_id] += vote_reward
+                    reputations[voter_id]["_total"] += vote_reward
+    
     return reputations
 
 def select_winning_bid(bids: dict, max_reward: int) -> Optional[str]:
@@ -3978,6 +4030,187 @@ def calculate_vote_weight(reputation: int) -> float:
     import math
     return 1.0 + math.log2(reputation + 1)
 
+def migrate_reputation_to_v2(old_reputation: int) -> dict:
+    """
+    Migra una reputazione da formato integer a formato dict specializzato.
+    
+    Args:
+        old_reputation: Valore integer della vecchia reputazione
+        
+    Returns:
+        Dict con struttura v2: {"_total": int, "_last_updated": str, "tags": {}}
+    """
+    return {
+        "_total": old_reputation,
+        "_last_updated": datetime.now(timezone.utc).isoformat(),
+        "tags": {}
+    }
+
+def ensure_reputation_v2_format(reputation: any) -> dict:
+    """
+    Assicura che la reputazione sia nel formato v2.
+    Se è un integer, lo migra. Se è già un dict, lo restituisce.
+    
+    Args:
+        reputation: Reputazione in formato qualsiasi
+        
+    Returns:
+        Dict con struttura v2
+    """
+    if isinstance(reputation, int):
+        return migrate_reputation_to_v2(reputation)
+    elif isinstance(reputation, dict):
+        # Verifica che abbia i campi necessari
+        if "_total" not in reputation:
+            reputation["_total"] = 0
+        if "_last_updated" not in reputation:
+            reputation["_last_updated"] = datetime.now(timezone.utc).isoformat()
+        if "tags" not in reputation:
+            reputation["tags"] = {}
+        return reputation
+    else:
+        # Fallback: crea reputazione vuota
+        return {
+            "_total": 0,
+            "_last_updated": datetime.now(timezone.utc).isoformat(),
+            "tags": {}
+        }
+
+def update_reputation_on_task_complete(reputation: dict, task_tags: List[str], reward_points: int) -> dict:
+    """
+    Aggiorna la reputazione di un nodo quando completa un task.
+    
+    Args:
+        reputation: Dict reputazione in formato v2
+        task_tags: Lista di tag del task completato
+        reward_points: Punti reward del task (default: 10)
+        
+    Returns:
+        Dict reputazione aggiornato
+    """
+    # Assicura formato v2
+    reputation = ensure_reputation_v2_format(reputation)
+    
+    # Aggiorna specializzazioni per ogni tag
+    for tag in task_tags:
+        if tag in reputation["tags"]:
+            reputation["tags"][tag] += reward_points
+        else:
+            reputation["tags"][tag] = reward_points
+    
+    # Aggiorna totale
+    reputation["_total"] += reward_points
+    
+    # Aggiorna timestamp
+    reputation["_last_updated"] = datetime.now(timezone.utc).isoformat()
+    
+    return reputation
+
+def calculate_contextual_vote_weight(reputation: dict, proposal_tags: List[str]) -> float:
+    """
+    Calcola il peso di un voto basato sulla reputazione e sul contesto della proposta.
+    
+    La formula combina:
+    - Base weight: log2(_total + 1) - reputazione generale
+    - Bonus weight: log2(specialization_score + 1) - expertise nei tag della proposta
+    
+    Args:
+        reputation: Dict reputazione in formato v2
+        proposal_tags: Lista di tag della proposta
+        
+    Returns:
+        Float peso totale del voto
+        
+    Examples:
+        >>> rep = {"_total": 1023, "tags": {"security": 500, "python": 100}}
+        >>> calculate_contextual_vote_weight(rep, ["security", "refactor"])
+        18.9  # base (10) + bonus (8.9)
+    """
+    import math
+    
+    # Assicura formato v2
+    reputation = ensure_reputation_v2_format(reputation)
+    
+    # Calcola peso base dalla reputazione totale
+    base_weight = 1.0 + math.log2(reputation["_total"] + 1)
+    
+    # Calcola specialization score sommando reputazione per tag matchati
+    specialization_score = 0
+    for tag in proposal_tags:
+        specialization_score += reputation["tags"].get(tag, 0)
+    
+    # Calcola peso bonus (smorzato con logaritmo)
+    bonus_weight = math.log2(specialization_score + 1) if specialization_score > 0 else 0
+    
+    # Peso totale
+    total_weight = base_weight + bonus_weight
+    
+    return round(total_weight, 2)
+
+async def reputation_decay_loop():
+    """
+    Background task che applica il decadimento della reputazione.
+    
+    Esegue una volta al giorno (ogni 24 ore) e:
+    - Applica decay factor (default 0.99 = -1% al giorno) a ogni tag
+    - Ricalcola _total come somma dei tag
+    - Rimuove tag sotto soglia minima (0.1)
+    - Aggiorna timestamp
+    """
+    DECAY_INTERVAL = 24 * 60 * 60  # 24 ore in secondi
+    DECAY_FACTOR = 0.99  # -1% al giorno
+    MIN_TAG_VALUE = 0.1  # Soglia minima per mantenere un tag
+    
+    logging.info("🕒 Reputation decay loop avviato (intervallo: 24h, factor: -1%)")
+    
+    while True:
+        try:
+            await asyncio.sleep(DECAY_INTERVAL)
+            
+            logging.info("⏳ Applicazione decay reputazione...")
+            
+            async with state_lock:
+                nodes = network_state.get("global", {}).get("nodes", {})
+                decay_applied_count = 0
+                tags_removed_count = 0
+                
+                for node_id, node_data in nodes.items():
+                    reputation = node_data.get("reputation", 0)
+                    
+                    # Assicura formato v2
+                    reputation = ensure_reputation_v2_format(reputation)
+                    
+                    # Applica decay a ogni tag
+                    tags_to_remove = []
+                    for tag, value in reputation["tags"].items():
+                        new_value = value * DECAY_FACTOR
+                        
+                        if new_value < MIN_TAG_VALUE:
+                            tags_to_remove.append(tag)
+                        else:
+                            reputation["tags"][tag] = round(new_value, 2)
+                    
+                    # Rimuovi tag sotto soglia
+                    for tag in tags_to_remove:
+                        del reputation["tags"][tag]
+                        tags_removed_count += 1
+                    
+                    # Ricalcola _total come somma dei tag
+                    reputation["_total"] = sum(reputation["tags"].values())
+                    
+                    # Aggiorna timestamp
+                    reputation["_last_updated"] = datetime.now(timezone.utc).isoformat()
+                    
+                    # Salva nel network state
+                    node_data["reputation"] = reputation
+                    decay_applied_count += 1
+            
+            logging.info(f"✅ Decay applicato a {decay_applied_count} nodi ({tags_removed_count} tag rimossi)")
+            
+        except Exception as e:
+            logging.error(f"❌ Errore in reputation decay loop: {e}")
+            await asyncio.sleep(60)  # Riprova dopo 1 minuto in caso di errore
+
 def calculate_proposal_outcome(proposal: dict, reputations: Dict[str, int]) -> dict:
     """
     Calcola l'esito di una proposta con voto ponderato.
@@ -4013,15 +4246,29 @@ def calculate_proposal_outcome(proposal: dict, reputations: Dict[str, int]) -> d
     yes_count = 0
     no_count = 0
 
-    # Elabora voti tradizionali (pubblici)
+    # Ottieni tag della proposta per calcolo contestuale
+    proposal_tags = proposal.get("tags", [])
+    
+    # Elabora voti tradizionali (pubblici) con peso contestuale
     for voter_id, vote_value in votes.items():
-        reputation = reputations.get(voter_id, 0)
-        weight = calculate_vote_weight(reputation)
+        reputation = reputations.get(voter_id, {
+            "_total": 0,
+            "_last_updated": datetime.now(timezone.utc).isoformat(),
+            "tags": {}
+        })
+        
+        # Usa calcolo contestuale se ci sono tag, altrimenti usa quello semplice
+        if proposal_tags and isinstance(reputation, dict):
+            weight = calculate_contextual_vote_weight(reputation, proposal_tags)
+        else:
+            # Fallback per compatibilità con vecchie reputazioni integer
+            rep_total = reputation["_total"] if isinstance(reputation, dict) else reputation
+            weight = calculate_vote_weight(rep_total)
 
         vote_details.append({
             "voter_id": voter_id,
             "vote": vote_value,
-            "reputation": reputation,
+            "reputation": reputation["_total"] if isinstance(reputation, dict) else reputation,
             "weight": round(weight, 2),
             "anonymous": False
         })
@@ -5036,6 +5283,10 @@ async def on_startup():
     # Avvia auction processor (automatic auction closing)
     asyncio.create_task(auction_processor_task())
     logging.info("🔨 Auction processor task avviato")
+    
+    # Avvia reputation decay loop (reputazione dinamica con decadimento)
+    asyncio.create_task(reputation_decay_loop())
+    logging.info("🕒 Reputation decay loop avviato (intervallo: 24h)")
     
     # Inizializza AI Agent (se modello disponibile)
     model_path = os.getenv("AI_MODEL_PATH", "models/qwen3-0.6b.gguf")

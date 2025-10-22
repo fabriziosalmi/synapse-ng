@@ -1,0 +1,36 @@
+{
+  "experiment_date": "2025-10-23 00:26:37",
+  "result": "SUCCESS",
+  "timing": {
+    "task_creation_ms": 52,
+    "task_propagation_ms": 15208,
+    "claim_operation_ms": 37,
+    "claim_propagation_ms": 15071,
+    "complete_operation_ms": 53,
+    "complete_propagation_ms": 15066,
+    "total_duration_ms": 66261
+  },
+  "economic": {
+    "creator_initial_sp": 1000,
+    "creator_final_sp": 990,
+    "creator_delta_sp": -10,
+    "contributor_initial_sp": 1000,
+    "contributor_final_sp": 1010,
+    "contributor_delta_sp": 10,
+    "tax_collected_sp": 0,
+    "contributor_reputation_gain": 10
+  },
+  "consensus": {
+    "balance_consensus": true,
+    "status_consensus": true,
+    "checkpoint1": "PASS",
+    "checkpoint2": "PASS",
+    "checkpoint3": "PASS"
+  },
+  "node_ids": {
+    "node1": "JkN-5D2qxGet881Ux96P7F7zPtWjOLH5HKoGugWYQ38=",
+    "node2": "OmHIcFIjwHYas_FvERd03k4a53c36fjt7khNdGUPtdg=",
+    "node3": "U8ttU5tMbo9pwAfMBsc8e_vezgu_yQ6kcweA8ms9I4w="
+  },
+  "task_id": "5f075c00-cf7c-45fa-9bc2-703815e49da6"
+}

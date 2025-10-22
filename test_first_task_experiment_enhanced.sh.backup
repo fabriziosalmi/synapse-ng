@@ -118,9 +118,9 @@ sleep 15
 
 print_header "STEP 1: Capture Node IDs"
 
-NODE1_ID=$(curl -s http://localhost:8001/whoami | jq -r '.node_id')
-NODE2_ID=$(curl -s http://localhost:8002/whoami | jq -r '.node_id')
-NODE3_ID=$(curl -s http://localhost:8003/whoami | jq -r '.node_id')
+NODE1_ID=$(curl -s http://localhost:8001/state | jq -r '.global.nodes | keys[0]')
+NODE2_ID=$(curl -s http://localhost:8002/state | jq -r '.global.nodes | keys[0]')
+NODE3_ID=$(curl -s http://localhost:8003/state | jq -r '.global.nodes | keys[0]')
 
 if [ -z "$NODE1_ID" ] || [ "$NODE1_ID" = "null" ]; then
     print_error "Non riesco a ottenere NODE1_ID"
@@ -131,9 +131,9 @@ print_success "Nodo 1 (Creator): ${NODE1_ID:0:16}..."
 print_success "Nodo 2 (Contributor): ${NODE2_ID:0:16}..."
 print_success "Nodo 3 (Observer): ${NODE3_ID:0:16}..."
 
-METRIC_node1_id=$NODE1_ID
-METRIC_node2_id=$NODE2_ID
-METRIC_node3_id=$NODE3_ID
+METRICS[node1_id]=$NODE1_ID
+METRICS[node2_id]=$NODE2_ID
+METRICS[node3_id]=$NODE3_ID
 
 print_header "STEP 2: Verifica Balance Iniziali"
 
@@ -143,8 +143,8 @@ BALANCE2_INIT=$(curl -s http://localhost:8002/state | jq ".global.nodes.\"$NODE2
 echo "Creator (Nodo 1): $BALANCE1_INIT SP"
 echo "Contributor (Nodo 2): $BALANCE2_INIT SP"
 
-METRIC_balance1_init=$BALANCE1_INIT
-METRIC_balance2_init=$BALANCE2_INIT
+METRICS[balance1_init]=$BALANCE1_INIT
+METRICS[balance2_init]=$BALANCE2_INIT
 
 if [ "$BALANCE1_INIT" -lt 10 ]; then
     print_error "Balance insufficiente per creare task con reward 10 SP"
@@ -154,9 +154,9 @@ fi
 print_header "STEP 3: Crea Task con Reward (Nodo 1 = Creator)"
 
 # 🔹 OTTIMIZZAZIONE: Estrazione automatica task_id
-METRIC_task_creation_start=$(get_timestamp_ms)
+METRICS[task_creation_start]=$(get_timestamp_ms)
 
-TASK_RESPONSE=$(curl -s -X POST "http://localhost:8001/tasks?channel=$CHANNEL" \
+TASK_RESPONSE=$(curl -s -X POST "http://localhost:8001/tasks?channel=dev_ui" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Trovare il primo bug in Synapse-NG",
@@ -167,8 +167,8 @@ TASK_RESPONSE=$(curl -s -X POST "http://localhost:8001/tasks?channel=$CHANNEL" \
 
 TASK_ID=$(echo "$TASK_RESPONSE" | jq -r '.id')
 
-METRIC_task_creation_end=$(get_timestamp_ms)
-METRIC_task_id=$TASK_ID
+METRICS[task_creation_end]=$(get_timestamp_ms)
+METRICS[task_id]=$TASK_ID
 
 if [ -z "$TASK_ID" ] || [ "$TASK_ID" = "null" ]; then
     print_error "Creazione task fallita"
@@ -179,17 +179,17 @@ fi
 print_success "Task creato: ${TASK_ID:0:16}..."
 echo "   Titolo: Trovare il primo bug in Synapse-NG"
 echo "   Reward: 10 SP"
-echo "   Channel: $CHANNEL"
+echo "   Channel: dev_ui"
 
-CREATION_TIME=$((METRIC_task_creation_end - METRIC_task_creation_start))
+CREATION_TIME=$((METRICS[task_creation_end] - METRICS[task_creation_start]))
 print_metric "Tempo creazione task: ${CREATION_TIME}ms"
 
 print_header "STEP 4: Verifica Balance Frozen (Creator)"
 
-echo "Attendo 15s per propagazione..."
-sleep 15
+echo "Attendo 10s per propagazione..."
+sleep 10
 
-METRIC_balance_check_start=$(get_timestamp_ms)
+METRICS[balance_check_start]=$(get_timestamp_ms)
 
 BALANCE1_FROZEN=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE1_ID\".balance // 1000")
 
@@ -197,7 +197,7 @@ echo "Balance Creator dopo creazione task:"
 echo "   Nodo 1: $BALANCE1_FROZEN SP (era $BALANCE1_INIT SP)"
 echo "   Differenza: $((BALANCE1_INIT - BALANCE1_FROZEN)) SP"
 
-METRIC_balance1_frozen=$BALANCE1_FROZEN
+METRICS[balance1_frozen]=$BALANCE1_FROZEN
 
 EXPECTED_FROZEN=$((BALANCE1_INIT - 10))
 
@@ -217,70 +217,70 @@ echo "   Nodo 1: $BALANCE1_FROZEN SP"
 echo "   Nodo 2: $BALANCE1_ON_NODE2 SP"
 echo "   Nodo 3: $BALANCE1_ON_NODE3 SP"
 
-METRIC_balance1_on_node2=$BALANCE1_ON_NODE2
-METRIC_balance1_on_node3=$BALANCE1_ON_NODE3
+METRICS[balance1_on_node2]=$BALANCE1_ON_NODE2
+METRICS[balance1_on_node3]=$BALANCE1_ON_NODE3
 
 if [ "$BALANCE1_FROZEN" -eq "$BALANCE1_ON_NODE2" ] && [ "$BALANCE1_FROZEN" -eq "$BALANCE1_ON_NODE3" ]; then
     print_success "✅ CHECKPOINT 1: Tutti i nodi concordano sul balance frozen"
-    METRIC_checkpoint1="PASS"
+    METRICS[checkpoint1]="PASS"
 else
     print_error "❌ CHECKPOINT 1 FALLITO: Consenso mancante"
-    METRIC_checkpoint1="FAIL"
+    METRICS[checkpoint1]="FAIL"
     exit 1
 fi
 
 # Misura tempo di propagazione
-METRIC_task_propagation_check=$(get_timestamp_ms)
-PROPAGATION_TIME=$((METRIC_task_propagation_check - METRIC_task_creation_end))
+METRICS[task_propagation_check]=$(get_timestamp_ms)
+PROPAGATION_TIME=$((METRICS[task_propagation_check] - METRICS[task_creation_end]))
 print_metric "Tempo propagazione task creation: ${PROPAGATION_TIME}ms"
 
 print_header "STEP 5: Claim Task (Nodo 2 = Contributor)"
 
-wait_for_condition "curl -s http://localhost:8002/state | jq -e '.$CHANNEL.tasks.\"$TASK_ID\"'" "Task visibile su Nodo 2" 30
+wait_for_condition "curl -s http://localhost:8002/state | jq -e '.dev_ui.tasks.\"$TASK_ID\"'" "Task visibile su Nodo 2" 30
 
-METRIC_claim_start=$(get_timestamp_ms)
+METRICS[claim_start]=$(get_timestamp_ms)
 
-CLAIM_RESPONSE=$(curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/claim?channel=$CHANNEL")
+CLAIM_RESPONSE=$(curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/claim?channel=dev_ui")
 
-METRIC_claim_end=$(get_timestamp_ms)
+METRICS[claim_end]=$(get_timestamp_ms)
 
 echo "$CLAIM_RESPONSE" | jq .
 
 print_success "Task claimed dal Nodo 2"
 
-CLAIM_TIME=$((METRIC_claim_end - METRIC_claim_start))
+CLAIM_TIME=$((METRICS[claim_end] - METRICS[claim_start]))
 print_metric "Tempo operazione claim: ${CLAIM_TIME}ms"
 
 echo ""
-print_info "Attendo 15s per propagazione claim..."
-sleep 15
+print_info "Attendo 10s per propagazione claim..."
+sleep 10
 
-METRIC_claim_propagation_check=$(get_timestamp_ms)
+METRICS[claim_propagation_check]=$(get_timestamp_ms)
 
 # Verifica che tutti i nodi vedono il claim
-STATUS_NODE1=$(curl -s http://localhost:8001/state | jq -r ".$CHANNEL.tasks.\"$TASK_ID\".status")
-STATUS_NODE2=$(curl -s http://localhost:8002/state | jq -r ".$CHANNEL.tasks.\"$TASK_ID\".status")
-STATUS_NODE3=$(curl -s http://localhost:8003/state | jq -r ".$CHANNEL.tasks.\"$TASK_ID\".status")
+STATUS_NODE1=$(curl -s http://localhost:8001/state | jq -r ".dev_ui.tasks.\"$TASK_ID\".status")
+STATUS_NODE2=$(curl -s http://localhost:8002/state | jq -r ".dev_ui.tasks.\"$TASK_ID\".status")
+STATUS_NODE3=$(curl -s http://localhost:8003/state | jq -r ".dev_ui.tasks.\"$TASK_ID\".status")
 
 echo "Status task dopo claim:"
 echo "   Nodo 1: $STATUS_NODE1"
 echo "   Nodo 2: $STATUS_NODE2"
 echo "   Nodo 3: $STATUS_NODE3"
 
-METRIC_status_node1=$STATUS_NODE1
-METRIC_status_node2=$STATUS_NODE2
-METRIC_status_node3=$STATUS_NODE3
+METRICS[status_node1]=$STATUS_NODE1
+METRICS[status_node2]=$STATUS_NODE2
+METRICS[status_node3]=$STATUS_NODE3
 
 if [ "$STATUS_NODE1" = "claimed" ] && [ "$STATUS_NODE2" = "claimed" ] && [ "$STATUS_NODE3" = "claimed" ]; then
     print_success "✅ CHECKPOINT 2: Tutti i nodi concordano su status=claimed"
-    METRIC_checkpoint2="PASS"
+    METRICS[checkpoint2]="PASS"
 else
     print_error "❌ CHECKPOINT 2 FALLITO: Status inconsistente"
-    METRIC_checkpoint2="FAIL"
+    METRICS[checkpoint2]="FAIL"
     exit 1
 fi
 
-CLAIM_PROPAGATION_TIME=$((METRIC_claim_propagation_check - METRIC_claim_end))
+CLAIM_PROPAGATION_TIME=$((METRICS[claim_propagation_check] - METRICS[claim_end]))
 print_metric "Tempo propagazione claim: ${CLAIM_PROPAGATION_TIME}ms"
 
 print_header "STEP 6: Progress e Complete Task (Nodo 2)"
@@ -295,27 +295,27 @@ echo ""
 echo "Per questo test, simuliamo il completamento diretto."
 
 # Progress
-METRIC_progress_start=$(get_timestamp_ms)
-curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/progress?channel=$CHANNEL" > /dev/null
-METRIC_progress_end=$(get_timestamp_ms)
+METRICS[progress_start]=$(get_timestamp_ms)
+curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/progress?channel=dev_ui" > /dev/null
+METRICS[progress_end]=$(get_timestamp_ms)
 print_success "Task in progress"
 
 sleep 5
 
 # Complete
-METRIC_complete_start=$(get_timestamp_ms)
-curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/complete?channel=$CHANNEL" > /dev/null
-METRIC_complete_end=$(get_timestamp_ms)
+METRICS[complete_start]=$(get_timestamp_ms)
+curl -s -X POST "http://localhost:8002/tasks/$TASK_ID/complete?channel=dev_ui" > /dev/null
+METRICS[complete_end]=$(get_timestamp_ms)
 print_success "Task completato"
 
-COMPLETE_TIME=$((METRIC_complete_end - METRIC_complete_start))
+COMPLETE_TIME=$((METRICS[complete_end] - METRICS[complete_start]))
 print_metric "Tempo operazione complete: ${COMPLETE_TIME}ms"
 
 echo ""
 print_info "Attendo 15s per propagazione complete e calcolo balance..."
 sleep 15
 
-METRIC_complete_propagation_check=$(get_timestamp_ms)
+METRICS[complete_propagation_check]=$(get_timestamp_ms)
 
 print_header "STEP 7: Verifica Transfer SP e Reputazione"
 
@@ -328,14 +328,14 @@ echo "   Creator (Nodo 1): $BALANCE1_FINAL SP (era $BALANCE1_INIT SP)"
 echo "   Contributor (Nodo 2): $BALANCE2_FINAL SP (era $BALANCE2_INIT SP)"
 echo ""
 
-METRIC_balance1_final=$BALANCE1_FINAL
-METRIC_balance2_final=$BALANCE2_FINAL
+METRICS[balance1_final]=$BALANCE1_FINAL
+METRICS[balance2_final]=$BALANCE2_FINAL
 
 CREATOR_DELTA=$((BALANCE1_FINAL - BALANCE1_INIT))
 CONTRIBUTOR_DELTA=$((BALANCE2_FINAL - BALANCE2_INIT))
 
-METRIC_creator_delta=$CREATOR_DELTA
-METRIC_contributor_delta=$CONTRIBUTOR_DELTA
+METRICS[creator_delta]=$CREATOR_DELTA
+METRICS[contributor_delta]=$CONTRIBUTOR_DELTA
 
 echo "Delta:"
 echo "   Creator: $CREATOR_DELTA SP"
@@ -345,15 +345,16 @@ echo "   Contributor: +$CONTRIBUTOR_DELTA SP"
 echo ""
 echo "Calcolo reputazioni..."
 
-REP1=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE1_ID\".reputation // 0")
-REP2=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE2_ID\".reputation // 0")
+REP_FULL=$(curl -s http://localhost:8001/reputations)
+REP1=$(echo "$REP_FULL" | jq ".\"$NODE1_ID\" // 0")
+REP2=$(echo "$REP_FULL" | jq ".\"$NODE2_ID\" // 0")
 
 echo "Reputazioni:"
 echo "   Creator (Nodo 1): $REP1"
 echo "   Contributor (Nodo 2): $REP2"
 
-METRIC_reputation1=$REP1
-METRIC_reputation2=$REP2
+METRICS[reputation1]=$REP1
+METRICS[reputation2]=$REP2
 
 # Verifica consenso finale
 BALANCE2_ON_NODE1=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE2_ID\".balance // 1000")
@@ -365,10 +366,10 @@ echo "   Nodo 1: $BALANCE2_ON_NODE1 SP"
 echo "   Nodo 2: $BALANCE2_FINAL SP"
 echo "   Nodo 3: $BALANCE2_ON_NODE3 SP"
 
-METRIC_balance2_on_node1=$BALANCE2_ON_NODE1
-METRIC_balance2_on_node3=$BALANCE2_ON_NODE3
+METRICS[balance2_on_node1]=$BALANCE2_ON_NODE1
+METRICS[balance2_on_node3]=$BALANCE2_ON_NODE3
 
-COMPLETE_PROPAGATION_TIME=$((METRIC_complete_propagation_check - METRIC_complete_end))
+COMPLETE_PROPAGATION_TIME=$((METRICS[complete_propagation_check] - METRICS[complete_end]))
 print_metric "Tempo propagazione complete: ${COMPLETE_PROPAGATION_TIME}ms"
 
 print_header "📊 RISULTATI FINALI"
@@ -407,13 +408,13 @@ else
     SUCCESS=false
 fi
 
-METRIC_experiment_end=$(get_timestamp_ms)
-TOTAL_TIME=$((METRIC_experiment_end - METRIC_experiment_start))
+METRICS[experiment_end]=$(get_timestamp_ms)
+TOTAL_TIME=$((METRICS[experiment_end] - METRICS[experiment_start]))
 
 echo ""
 if [ "$SUCCESS" = true ]; then
     print_header "🎉 ESPERIMENTO RIUSCITO!"
-    METRIC_result="SUCCESS"
+    METRICS[result]="SUCCESS"
     echo ""
     echo "✅ Il sistema ha dimostrato che:"
     echo "   1. Un task con reward è stato creato"
@@ -426,16 +427,16 @@ if [ "$SUCCESS" = true ]; then
     echo "Il sistema si auto-esegue. 🧬"
     echo ""
     print_success "✅ CHECKPOINT 3: Transfer e reputazione verificati"
-    METRIC_checkpoint3="PASS"
+    METRICS[checkpoint3]="PASS"
 else
     print_header "❌ ESPERIMENTO FALLITO"
-    METRIC_result="FAIL"
+    METRICS[result]="FAIL"
     echo ""
     echo "Uno o più checkpoint non sono stati superati."
     echo "Controlla i log sopra per dettagli."
     echo ""
     print_error "Il sistema richiede debug"
-    METRIC_checkpoint3="FAIL"
+    METRICS[checkpoint3]="FAIL"
 fi
 
 # Generate metrics summary
@@ -491,16 +492,16 @@ else
     printf "${CYAN}│${NC} %-45s ${RED}%10s${NC} ${CYAN}│${NC}\n" "Status Consensus" "✗ NO"
 fi
 
-printf "${CYAN}│${NC} %-45s ${MAGENTA}%10s${NC} ${CYAN}│${NC}\n" "Checkpoint 1 (Balance Frozen)" "${METRIC_checkpoint1}"
-printf "${CYAN}│${NC} %-45s ${MAGENTA}%10s${NC} ${CYAN}│${NC}\n" "Checkpoint 2 (Task Claimed)" "${METRIC_checkpoint2}"
-printf "${CYAN}│${NC} %-45s ${MAGENTA}%10s${NC} ${CYAN}│${NC}\n" "Checkpoint 3 (Reward Transfer)" "${METRIC_checkpoint3}"
+printf "${CYAN}│${NC} %-45s ${MAGENTA}%10s${NC} ${CYAN}│${NC}\n" "Checkpoint 1 (Balance Frozen)" "${METRICS[checkpoint1]}"
+printf "${CYAN}│${NC} %-45s ${MAGENTA}%10s${NC} ${CYAN}│${NC}\n" "Checkpoint 2 (Task Claimed)" "${METRICS[checkpoint2]}"
+printf "${CYAN}│${NC} %-45s ${MAGENTA}%10s${NC} ${CYAN}│${NC}\n" "Checkpoint 3 (Reward Transfer)" "${METRICS[checkpoint3]}"
 echo -e "${CYAN}└─────────────────────────────────────────────────────────────────┘${NC}"
 
 # Save metrics to JSON
 cat > "$METRICS_FILE" <<EOF
 {
   "experiment_date": "$(date '+%Y-%m-%d %H:%M:%S')",
-  "result": "${METRIC_result}",
+  "result": "${METRICS[result]}",
   "timing": {
     "task_creation_ms": $CREATION_TIME,
     "task_propagation_ms": $PROPAGATION_TIME,
@@ -523,9 +524,9 @@ cat > "$METRICS_FILE" <<EOF
   "consensus": {
     "balance_consensus": $([ "$BALANCE_DISCREPANCY" -eq 0 ] && echo "true" || echo "false"),
     "status_consensus": $([ "$STATUS_NODE1" = "$STATUS_NODE2" ] && [ "$STATUS_NODE2" = "$STATUS_NODE3" ] && echo "true" || echo "false"),
-    "checkpoint1": "${METRIC_checkpoint1}",
-    "checkpoint2": "${METRIC_checkpoint2}",
-    "checkpoint3": "${METRIC_checkpoint3}"
+    "checkpoint1": "${METRICS[checkpoint1]}",
+    "checkpoint2": "${METRICS[checkpoint2]}",
+    "checkpoint3": "${METRICS[checkpoint3]}"
   },
   "node_ids": {
     "node1": "$NODE1_ID",

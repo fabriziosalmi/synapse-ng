@@ -1,0 +1,13 @@
+[2025-10-23 00:08:33] === 🧪 FIRST TASK EXPERIMENT - Enhanced Version ===
+[2025-10-23 00:08:33] === STEP 0: Verifica Nodi Attivi ===
+[2025-10-23 00:08:33] SUCCESS: Nodo su porta 8001 è online
+[2025-10-23 00:08:33] SUCCESS: Nodo su porta 8002 è online
+[2025-10-23 00:08:33] SUCCESS: Nodo su porta 8003 è online
+[2025-10-23 00:08:33] INFO: Attendo 15 secondi per stabilizzazione rete...
+[2025-10-23 00:08:48] === STEP 1: Capture Node IDs ===
+[2025-10-23 00:08:48] SUCCESS: Nodo 1 (Creator): JkN-5D2qxGet881U...
+[2025-10-23 00:08:48] SUCCESS: Nodo 2 (Contributor): JkN-5D2qxGet881U...
+[2025-10-23 00:08:48] SUCCESS: Nodo 3 (Observer): JkN-5D2qxGet881U...
+[2025-10-23 00:08:48] === STEP 2: Verifica Balance Iniziali ===
+[2025-10-23 00:08:48] === STEP 3: Crea Task con Reward (Nodo 1 = Creator) ===
+[2025-10-23 00:08:48] ERROR: Creazione task fallita

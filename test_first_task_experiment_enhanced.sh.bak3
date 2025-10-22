@@ -186,8 +186,8 @@ print_metric "Tempo creazione task: ${CREATION_TIME}ms"
 
 print_header "STEP 4: Verifica Balance Frozen (Creator)"
 
-echo "Attendo 15s per propagazione..."
-sleep 15
+echo "Attendo 10s per propagazione..."
+sleep 10
 
 METRIC_balance_check_start=$(get_timestamp_ms)
 
@@ -252,8 +252,8 @@ CLAIM_TIME=$((METRIC_claim_end - METRIC_claim_start))
 print_metric "Tempo operazione claim: ${CLAIM_TIME}ms"
 
 echo ""
-print_info "Attendo 15s per propagazione claim..."
-sleep 15
+print_info "Attendo 10s per propagazione claim..."
+sleep 10
 
 METRIC_claim_propagation_check=$(get_timestamp_ms)
 
@@ -345,8 +345,9 @@ echo "   Contributor: +$CONTRIBUTOR_DELTA SP"
 echo ""
 echo "Calcolo reputazioni..."
 
-REP1=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE1_ID\".reputation // 0")
-REP2=$(curl -s http://localhost:8001/state | jq ".global.nodes.\"$NODE2_ID\".reputation // 0")
+REP_FULL=$(curl -s http://localhost:8001/reputations)
+REP1=$(echo "$REP_FULL" | jq ".\"$NODE1_ID\" // 0")
+REP2=$(echo "$REP_FULL" | jq ".\"$NODE2_ID\" // 0")
 
 echo "Reputazioni:"
 echo "   Creator (Nodo 1): $REP1"
