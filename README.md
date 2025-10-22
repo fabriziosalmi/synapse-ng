@@ -8,11 +8,29 @@
 
 Synapse-NG is a fully decentralized peer-to-peer network that self-organizes like a living organism. There is no central authority, no mandatory server, no leader. Each node is an autonomous agent that collaborates to form a collective consciousness, make decisions, and accomplish tasks.
 
+---
+
+## 🎯 New Here? Start With This
+
+**Want to see a system that rewards you automatically, without human approval?**
+
+👉 **[5-Minute Quick Start](QUICKSTART.md)** - Find a bug, earn Synapse Points + Reputation
+
+👉 **[The First Task Experiment](docs/EXPERIMENT_ONE_PAGER.md)** - One-page summary of what this proves
+
+**The principle**: Contribution → Value. No middleman. No approval. Just execution.
+
+---
+
 ## 🧬 Philosophy
 
 Each node is a sovereign "neuron" that collaborates to form a collective consciousness, make decisions, and accomplish tasks.
 
 ## 📚 Documentation
+
+### 🚀 New Contributors Start Here!
+- **[⚡ Quick Start - Your First Contribution](QUICKSTART.md)** - 5 minute guide to earn your first Synapse Points
+- **[🧪 First Task Experiment](docs/FIRST_TASK_EXPERIMENT.md)** - The micro-experiment that proves the principle: Contribution → Value
 
 ### Getting Started
 - **[Getting Started](docs/GETTING_STARTED.md)** - Quick setup and first steps
