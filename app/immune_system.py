@@ -47,6 +47,8 @@ class HealthIssue:
     recommended_action: str
     description: str
     detected_at: str
+    issue_source: str = "config"  # "config", "algorithm", "network", "resource"
+    affected_component: str = "unknown"  # es. "gossip_protocol", "raft_consensus", "auction_system"
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

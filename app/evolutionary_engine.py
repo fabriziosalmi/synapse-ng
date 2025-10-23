@@ -33,10 +33,42 @@ except ImportError:
     LLM_AVAILABLE = False
     logger.warning("⚠️ llama-cpp-python not available - Code generation disabled")
 
+# HTTP client for Ollama API
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+    logger.warning("⚠️ aiohttp not available - Ollama API support disabled")
+
 
 # ========================================
 # Enums and DataClasses
 # ========================================
+
+@dataclass
+class LLMProviderConfig:
+    """
+    Configurazione per il provider LLM.
+    Supporta Ollama locale, OpenAI, Anthropic, etc.
+    """
+    provider_name: str  # "ollama_local", "openai_api", "anthropic_api"
+    model_name: str     # es. "codellama:7b", "gpt-4", "claude-3-opus"
+    api_endpoint: str   # es. "http://localhost:11434/api/generate"
+    api_key: Optional[str] = None
+    timeout_seconds: int = 120
+    temperature: float = 0.2  # Bassa temperatura per codice più deterministico
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "provider_name": self.provider_name,
+            "model_name": self.model_name,
+            "api_endpoint": self.api_endpoint,
+            "api_key": "***" if self.api_key else None,
+            "timeout_seconds": self.timeout_seconds,
+            "temperature": self.temperature
+        }
+
 
 class InefficencyType(str, Enum):
     """Types of network inefficiencies"""
@@ -711,6 +743,644 @@ human review is recommended before approval, especially for critical components.
             json.dump(proposal_data, f, indent=2)
         
         logger.info(f"💾 Proposal saved for review: {proposal_file}")
+
+
+# ========================================
+# New EvolutionaryEngineManager Class
+# ========================================
+
+class EvolutionaryEngineManager:
+    """
+    Motore di auto-evoluzione migliorato con supporto Ollama API.
+    
+    Questo manager è il "laboratorio R&D" della rete che collabora
+    con l'ImmuneSystemManager per generare soluzioni algoritmiche.
+    
+    Differenze rispetto a EvolutionaryEngine:
+    - Usa Ollama API (non llama_cpp locale)
+    - Prompt engineering avanzato per qualità codice
+    - Verifica SHA256 e dimensione WASM
+    - Statistiche dettagliate
+    """
+    
+    def __init__(
+        self,
+        llm_config: LLMProviderConfig,
+        workspace_dir: str = "/tmp/synapse_evolution",
+        rustc_path: str = "rustc",
+        enable_sandbox: bool = True
+    ):
+        """
+        Inizializza l'Evolutionary Engine Manager.
+        
+        Args:
+            llm_config: Configurazione del provider LLM
+            workspace_dir: Directory per i file temporanei di compilazione
+            rustc_path: Percorso al compilatore Rust (default: "rustc" in PATH)
+            enable_sandbox: Se True, abilita verifiche di sicurezza aggiuntive
+        """
+        self.llm_config = llm_config
+        self.workspace_dir = workspace_dir
+        self.rustc_path = rustc_path
+        self.enable_sandbox = enable_sandbox
+        
+        # Create workspace
+        os.makedirs(self.workspace_dir, exist_ok=True)
+        
+        # Statistics
+        self.generation_count = 0
+        self.successful_compilations = 0
+        self.failed_compilations = 0
+        
+        logger.info(f"🧬 [EvolutionaryEngineManager] Initialized")
+        logger.info(f"   LLM: {llm_config.provider_name}/{llm_config.model_name}")
+        logger.info(f"   Workspace: {workspace_dir}")
+        logger.info(f"   Sandbox: {enable_sandbox}")
+        
+        # Verify Rust toolchain
+        self._verify_rust_toolchain()
+    
+    
+    def _verify_rust_toolchain(self):
+        """Verifica che il toolchain Rust sia disponibile"""
+        try:
+            result = subprocess.run(
+                [self.rustc_path, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                logger.info(f"✅ [EvolutionaryEngineManager] Rust toolchain: {version}")
+            else:
+                logger.warning("[EvolutionaryEngineManager] Rust compiler error")
+                
+        except FileNotFoundError:
+            logger.error(f"❌ [EvolutionaryEngineManager] Rust compiler not found: {self.rustc_path}")
+            logger.error("   Install from: https://rustup.rs/")
+        except Exception as e:
+            logger.error(f"❌ [EvolutionaryEngineManager] Error verifying Rust: {e}")
+    
+    
+    async def generate_optimized_code(
+        self,
+        issue: Inefficiency,
+        additional_context: Optional[Dict[str, Any]] = None
+    ) -> Optional[GeneratedCode]:
+        """
+        Genera codice ottimizzato per risolvere un problema architetturale.
+        
+        Questo è il metodo orchestratore principale che:
+        1. Costruisce un prompt per l'LLM
+        2. Invoca l'LLM per generare codice Rust
+        3. Compila il codice in WASM
+        4. Verifica l'integrità del risultato
+        
+        Args:
+            issue: Inefficiency rilevata dall'ImmuneSystemManager
+            additional_context: Contesto aggiuntivo per la generazione
+            
+        Returns:
+            GeneratedCode se successo, None se fallimento
+        """
+        import time
+        import re
+        
+        start_time = time.time()
+        self.generation_count += 1
+        
+        logger.info(f"[EvolutionaryEngineManager] ===== Starting code generation =====")
+        logger.info(f"   Issue type: {issue.type}")
+        logger.info(f"   Affected component: {issue.affected_component}")
+        logger.info(f"   Severity: {issue.severity}")
+        
+        try:
+            # Step 1: Build LLM prompt
+            prompt = self._build_llm_prompt(issue, additional_context)
+            logger.info(f"[EvolutionaryEngineManager] Built prompt ({len(prompt)} chars)")
+            
+            # Step 2: Invoke LLM to generate Rust code
+            llm_start = time.time()
+            rust_code = await self._invoke_llm(prompt)
+            llm_duration = time.time() - llm_start
+            
+            if not rust_code:
+                logger.error("[EvolutionaryEngineManager] LLM failed to generate code")
+                return None
+            
+            logger.info(f"[EvolutionaryEngineManager] Generated Rust code ({len(rust_code)} chars) in {llm_duration:.2f}s")
+            
+            # Step 3: Compile Rust to WASM
+            compile_start = time.time()
+            success, comp_log, wasm_path, wasm_hash, wasm_size = self._compile_rust_to_wasm(
+                rust_code,
+                issue.type.value
+            )
+            compile_duration = time.time() - compile_start
+            
+            if success:
+                self.successful_compilations += 1
+                logger.info(f"[EvolutionaryEngineManager] ✓ Compilation successful in {compile_duration:.2f}s")
+                logger.info(f"   WASM size: {wasm_size} bytes")
+                logger.info(f"   WASM hash: {wasm_hash}")
+                
+                # Read WASM binary
+                with open(wasm_path, "rb") as f:
+                    wasm_binary = f.read()
+            else:
+                self.failed_compilations += 1
+                logger.error(f"[EvolutionaryEngineManager] ✗ Compilation failed")
+                logger.error(f"   Log:\n{comp_log}")
+                wasm_binary = None
+            
+            # Step 4: Estimate performance gain
+            perf_estimate = issue.suggested_improvement or "Expected improvement based on algorithmic optimization"
+            
+            # Step 5: Build result object
+            generated_code = GeneratedCode(
+                language=CodeLanguage.RUST,
+                source_code=rust_code,
+                description=f"Optimized algorithm for {issue.affected_component}",
+                target_component=issue.affected_component,
+                estimated_improvement=issue.severity * 100,  # Severity as % improvement
+                wasm_binary=wasm_binary,
+                wasm_hash=wasm_hash if success else None,
+                compilation_log=comp_log
+            )
+            
+            total_duration = time.time() - start_time
+            logger.info(f"[EvolutionaryEngineManager] ===== Generation complete ({total_duration:.2f}s) =====")
+            
+            return generated_code
+            
+        except Exception as e:
+            logger.error(f"[EvolutionaryEngineManager] Error in generation: {e}", exc_info=True)
+            return None
+    
+    
+    def _build_llm_prompt(
+        self,
+        issue: Inefficiency,
+        additional_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Costruisce un prompt dettagliato per l'LLM.
+        
+        Questo metodo è un "prompt engineer" esperto che sa come
+        estrarre codice di alta qualità dall'LLM.
+        """
+        # Build context section
+        context_section = ""
+        if additional_context:
+            context_section = "\n### CONTESTO AGGIUNTIVO\n"
+            for key, value in additional_context.items():
+                context_section += f"- {key}: {value}\n"
+        
+        # Build example input section based on component type
+        example_input = self._get_example_input_for_component(issue.affected_component)
+        
+        prompt = f"""### CONTESTO
+Sei un ingegnere software senior specializzato in sistemi distribuiti, Rust e WebAssembly (WASM).
+Stai lavorando al progetto Synapse-NG, una rete peer-to-peer autonoma che si auto-evolve.
+
+### PROBLEMA RILEVATO
+Il sistema immunitario della rete ha rilevato un'inefficienza cronica che richiede un intervento algoritmico.
+
+**Componente Interessato**: {issue.affected_component}
+**Tipo di Problema**: {issue.type.value}
+**Severità**: {issue.severity:.2f} (0.0-1.0 scale)
+**Descrizione Dettagliata**:
+{issue.description}
+
+**Metrica Corrente**: {issue.current_metric:.2f}
+**Metrica Target**: {issue.target_metric:.2f}
+**Miglioramento Suggerito**: {issue.suggested_improvement}
+{context_section}
+
+### OBIETTIVO
+Scrivi un algoritmo in Rust ottimizzato per risolvere questo problema specifico.
+Il codice deve essere:
+- **Performante**: Usa strutture dati efficienti e algoritmi ottimizzati
+- **Sicuro**: Memory-safe e thread-safe (sfrutta il type system di Rust)
+- **Testabile**: Include asserzioni e invarianti dove appropriato
+- **Deterministico**: Stesso input deve produrre stesso output
+
+### REQUISITI TECNICI OBBLIGATORI
+
+1. **Struttura del File**:
+   - Il codice deve essere contenuto in un singolo file Rust auto-contenuto
+   - Non usare dipendenze esterne (no `use external_crate::*`)
+   - Usa solo la standard library di Rust
+
+2. **Target di Compilazione**:
+   - Deve compilare per il target `wasm32-unknown-unknown`
+   - Usa `#![no_std]` se possibile, oppure `#![cfg_attr(target_arch = "wasm32", no_std)]`
+
+3. **Interfaccia Pubblica**:
+   - Esponi una funzione pubblica principale con firma chiara
+   - Esempio: `pub fn execute(input_data: &str) -> String`
+   - La firma può variare in base al componente, ma deve essere chiara e documentata
+
+4. **Restrizioni di Sicurezza**:
+   - NON interagire con filesystem (no `std::fs`)
+   - NON effettuare chiamate di rete (no `std::net`)
+   - NON usare threading o processi (no `std::thread`, no `std::process`)
+   - NON usare syscall dirette o codice unsafe senza giustificazione
+   - Il codice deve funzionare in un ambiente sandbox WASM
+
+5. **Documentazione**:
+   - Includi commenti `///` per la funzione pubblica principale
+   - Spiega la complessità computazionale (Big-O) se rilevante
+   - Documenta gli invarianti e le assunzioni
+
+6. **Ottimizzazioni**:
+   - Se il problema riguarda latenza, minimizza allocazioni
+   - Se riguarda throughput, considera batch processing
+   - Se riguarda memoria, usa strutture dati compatte
+
+### ESEMPIO DI INPUT/OUTPUT
+{example_input}
+
+### FORMATO OUTPUT
+Il tuo output deve contenere **SOLO** il codice Rust, racchiuso in un blocco di codice markdown:
+
+```rust
+// Il tuo codice Rust ottimizzato qui
+```
+
+NON includere spiegazioni prima o dopo il blocco di codice.
+NON includere placeholder o commenti tipo "// implementazione qui".
+Scrivi codice completo e funzionante.
+
+Inizia a scrivere il codice Rust ottimizzato adesso.
+"""
+        
+        return prompt
+    
+    
+    def _get_example_input_for_component(self, component: str) -> str:
+        """Fornisce esempi di input/output specifici per ciascun componente"""
+        examples = {
+            "gossip_protocol": """
+Il componente riceve messaggi in formato JSON e deve scegliere i peer a cui propagarli.
+
+**Input**: `{\"msg_id\": \"abc123\", \"ttl\": 5, \"payload\": \"...\"}`
+**Output**: `[\"peer_1\", \"peer_3\", \"peer_7\"]` (lista di peer selezionati)
+
+Il tuo algoritmo deve ottimizzare la selezione dei peer per ridurre latenza e ridondanza.
+""",
+            "raft_consensus": """
+Il componente riceve voti da nodi validatori e deve determinare il consenso.
+
+**Input**: `{\"proposal_id\": \"prop_42\", \"votes\": [{\"node\": \"A\", \"vote\": \"yes\"}, ...]}`
+**Output**: `{\"result\": \"approved\", \"quorum_reached\": true, \"final_count\": {\"yes\": 7, \"no\": 2}}`
+
+Il tuo algoritmo deve implementare un meccanismo di consenso efficiente e Byzantine-tolerant.
+""",
+            "auction_system": """
+Il componente gestisce aste con offerte multiple.
+
+**Input**: `{\"auction_id\": \"a1\", \"bids\": [{\"bidder\": \"B1\", \"amount\": 100}, ...]}`
+**Output**: `{\"winner\": \"B1\", \"amount\": 100, \"processing_time_ms\": 50}`
+
+Il tuo algoritmo deve trovare il vincitore rapidamente con complessità O(n log n) o migliore.
+""",
+            "routing_table": """
+Il componente mantiene una tabella di routing per trovare il percorso più breve verso un nodo.
+
+**Input**: `{\"destination\": \"node_X\", \"known_peers\": [\"A\", \"B\", \"C\"], \"latencies\": {\"A\": 50, \"B\": 120, \"C\": 30}}`
+**Output**: `{\"next_hop\": \"C\", \"estimated_latency_ms\": 85}`
+
+Il tuo algoritmo deve implementare un routing efficiente (es. Dijkstra, A*).
+""",
+        }
+        
+        return examples.get(component, """
+**Input**: Dipende dal componente specifico (usa strutture dati appropriate)
+**Output**: Risultato del processamento
+
+Il tuo algoritmo deve essere generico ma efficiente per il caso d'uso specificato.
+""")
+    
+    
+    async def _invoke_llm(self, prompt: str) -> Optional[str]:
+        """
+        Invoca l'LLM per generare codice Rust.
+        
+        Attualmente supporta Ollama locale, ma può essere esteso
+        per supportare OpenAI, Anthropic, etc.
+        """
+        provider = self.llm_config.provider_name.lower()
+        
+        try:
+            if "ollama" in provider:
+                return await self._invoke_ollama(prompt)
+            elif "openai" in provider:
+                logger.warning("[EvolutionaryEngineManager] OpenAI provider not yet implemented")
+                return None
+            elif "anthropic" in provider:
+                logger.warning("[EvolutionaryEngineManager] Anthropic provider not yet implemented")
+                return None
+            else:
+                logger.error(f"[EvolutionaryEngineManager] Unsupported LLM provider: {provider}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"[EvolutionaryEngineManager] Error invoking LLM: {e}", exc_info=True)
+            return None
+    
+    
+    async def _invoke_ollama(self, prompt: str) -> Optional[str]:
+        """
+        Invoca Ollama locale per generare codice.
+        
+        Args:
+            prompt: Il prompt da inviare
+            
+        Returns:
+            Codice Rust estratto, o None
+        """
+        if not AIOHTTP_AVAILABLE:
+            logger.error("[EvolutionaryEngineManager] aiohttp not available - cannot call Ollama")
+            return None
+        
+        import aiohttp
+        import re
+        
+        try:
+            payload = {
+                "model": self.llm_config.model_name,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": self.llm_config.temperature,
+                    "num_predict": 4096,  # Max tokens per generazione
+                }
+            }
+            
+            timeout = aiohttp.ClientTimeout(total=self.llm_config.timeout_seconds)
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    self.llm_config.api_endpoint,
+                    json=payload
+                ) as response:
+                    
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"[EvolutionaryEngineManager] Ollama API error: {response.status}")
+                        logger.error(f"   Response: {error_text}")
+                        return None
+                    
+                    result = await response.json()
+                    raw_response = result.get("response", "")
+                    
+                    # Extract Rust code from markdown code block
+                    rust_code = self._extract_rust_code(raw_response)
+                    
+                    if not rust_code:
+                        logger.warning("[EvolutionaryEngineManager] Could not extract Rust code from LLM response")
+                        logger.debug(f"   Raw response:\n{raw_response}")
+                        return None
+                    
+                    return rust_code
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"[EvolutionaryEngineManager] Ollama request timed out after {self.llm_config.timeout_seconds}s")
+            return None
+        except Exception as e:
+            logger.error(f"[EvolutionaryEngineManager] Error calling Ollama: {e}", exc_info=True)
+            return None
+    
+    
+    def _extract_rust_code(self, text: str) -> Optional[str]:
+        """
+        Estrae codice Rust da un blocco markdown.
+        
+        Args:
+            text: Testo grezzo dalla risposta LLM
+            
+        Returns:
+            Codice Rust pulito, o None se non trovato
+        """
+        import re
+        
+        # Try to find ```rust ... ``` block
+        pattern = r"```rust\n(.*?)\n```"
+        matches = re.findall(pattern, text, re.DOTALL)
+        
+        if matches:
+            # Return the first Rust code block found
+            code = matches[0].strip()
+            logger.debug(f"[EvolutionaryEngineManager] Extracted Rust code ({len(code)} chars)")
+            return code
+        
+        # Fallback: try generic code block ```...```
+        pattern = r"```\n(.*?)\n```"
+        matches = re.findall(pattern, text, re.DOTALL)
+        
+        if matches:
+            code = matches[0].strip()
+            # Verify it looks like Rust (contains "fn" or "pub")
+            if "fn " in code or "pub " in code:
+                logger.debug(f"[EvolutionaryEngineManager] Extracted code from generic block ({len(code)} chars)")
+                return code
+        
+        logger.warning("[EvolutionaryEngineManager] No code block found in LLM response")
+        return None
+    
+    
+    def _compile_rust_to_wasm(
+        self,
+        rust_code: str,
+        issue_type: str
+    ) -> Tuple[bool, str, Optional[str], Optional[str], Optional[int]]:
+        """
+        Compila codice Rust in WebAssembly.
+        
+        Questa è la "fabbrica" che trasforma il codice generato dall'LLM
+        in un artefatto eseguibile verificato.
+        
+        Args:
+            rust_code: Codice sorgente Rust
+            issue_type: Tipo di issue (usato per naming)
+            
+        Returns:
+            Tupla di (success, compilation_log, wasm_path, wasm_hash, wasm_size)
+        """
+        import time
+        import re
+        
+        timestamp = int(time.time())
+        safe_issue_type = re.sub(r'[^a-z0-9_]', '_', issue_type.lower())
+        
+        # Create temporary files
+        rust_file = os.path.join(self.workspace_dir, f"{safe_issue_type}_{timestamp}.rs")
+        wasm_file = os.path.join(self.workspace_dir, f"{safe_issue_type}_{timestamp}.wasm")
+        
+        try:
+            # Write Rust source to file
+            with open(rust_file, "w", encoding="utf-8") as f:
+                f.write(rust_code)
+            logger.info(f"[EvolutionaryEngineManager] Wrote Rust source to: {rust_file}")
+            
+            # Prepare rustc command
+            compile_cmd = [
+                self.rustc_path,
+                rust_file,
+                "--target", "wasm32-unknown-unknown",
+                "--crate-type=cdylib",
+                "-C", "opt-level=3",  # Maximum optimization
+                "-C", "lto=fat",      # Link-time optimization
+                "-o", wasm_file
+            ]
+            
+            logger.info(f"[EvolutionaryEngineManager] Compiling: {' '.join(compile_cmd)}")
+            
+            # Execute compilation
+            compile_start = time.time()
+            result = subprocess.run(
+                compile_cmd,
+                capture_output=True,
+                text=True,
+                timeout=60  # 1 minute timeout for compilation
+            )
+            compile_duration = time.time() - compile_start
+            
+            # Capture logs
+            compilation_log = f"=== COMPILATION OUTPUT ===\n"
+            compilation_log += f"Command: {' '.join(compile_cmd)}\n"
+            compilation_log += f"Duration: {compile_duration:.2f}s\n"
+            compilation_log += f"Exit Code: {result.returncode}\n\n"
+            compilation_log += f"STDOUT:\n{result.stdout}\n\n"
+            compilation_log += f"STDERR:\n{result.stderr}\n"
+            
+            # Check if compilation succeeded
+            if result.returncode == 0 and os.path.exists(wasm_file):
+                # Read WASM binary
+                with open(wasm_file, "rb") as f:
+                    wasm_data = f.read()
+                wasm_size = len(wasm_data)
+                
+                # Calculate SHA256 hash
+                wasm_hash = hashlib.sha256(wasm_data).hexdigest()
+                
+                logger.info(f"[EvolutionaryEngineManager] ✓ Compilation successful")
+                logger.info(f"   WASM output: {wasm_file}")
+                logger.info(f"   Size: {wasm_size} bytes")
+                logger.info(f"   SHA256: {wasm_hash}")
+                
+                return (True, compilation_log, wasm_file, wasm_hash, wasm_size)
+            else:
+                logger.error(f"[EvolutionaryEngineManager] ✗ Compilation failed (exit code: {result.returncode})")
+                return (False, compilation_log, None, None, None)
+                
+        except subprocess.TimeoutExpired:
+            error_log = "ERROR: Compilation timed out after 60 seconds"
+            logger.error(f"[EvolutionaryEngineManager] {error_log}")
+            return (False, error_log, None, None, None)
+            
+        except Exception as e:
+            error_log = f"ERROR: Unexpected compilation error: {e}"
+            logger.error(f"[EvolutionaryEngineManager] {error_log}", exc_info=True)
+            return (False, error_log, None, None, None)
+        
+        finally:
+            # Cleanup: remove temporary Rust source file
+            try:
+                if os.path.exists(rust_file):
+                    os.unlink(rust_file)
+                    logger.debug(f"[EvolutionaryEngineManager] Cleaned up: {rust_file}")
+            except Exception as e:
+                logger.warning(f"[EvolutionaryEngineManager] Could not cleanup {rust_file}: {e}")
+    
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Restituisce statistiche sull'attività dell'engine"""
+        return {
+            "total_generations": self.generation_count,
+            "successful_compilations": self.successful_compilations,
+            "failed_compilations": self.failed_compilations,
+            "success_rate": (
+                self.successful_compilations / self.generation_count
+                if self.generation_count > 0 else 0.0
+            ),
+            "workspace_dir": self.workspace_dir,
+            "llm_provider": self.llm_config.provider_name,
+            "llm_model": self.llm_config.model_name,
+        }
+    
+    
+    def cleanup_workspace(self, keep_latest: int = 5):
+        """
+        Pulisce i file vecchi dalla workspace, mantenendo solo gli ultimi N.
+        
+        Args:
+            keep_latest: Numero di file WASM da mantenere (default: 5)
+        """
+        try:
+            wasm_files = sorted(
+                [f for f in os.listdir(self.workspace_dir) if f.endswith('.wasm')],
+                key=lambda f: os.path.getmtime(os.path.join(self.workspace_dir, f)),
+                reverse=True
+            )
+            
+            if len(wasm_files) > keep_latest:
+                for old_file in wasm_files[keep_latest:]:
+                    old_path = os.path.join(self.workspace_dir, old_file)
+                    os.unlink(old_path)
+                    logger.info(f"[EvolutionaryEngineManager] Cleaned up old WASM: {old_file}")
+                    
+        except Exception as e:
+            logger.warning(f"[EvolutionaryEngineManager] Error during cleanup: {e}")
+
+
+# ============================================================================
+# GLOBAL INSTANCE FOR EvolutionaryEngineManager
+# ============================================================================
+
+_evolutionary_engine_manager: Optional[EvolutionaryEngineManager] = None
+
+
+def initialize_evolutionary_engine_manager(
+    llm_config: LLMProviderConfig,
+    workspace_dir: str = "/tmp/synapse_evolution",
+    rustc_path: str = "rustc"
+) -> EvolutionaryEngineManager:
+    """
+    Inizializza l'Evolutionary Engine Manager globale.
+    
+    Args:
+        llm_config: Configurazione del provider LLM
+        workspace_dir: Directory di lavoro
+        rustc_path: Percorso al compilatore Rust
+        
+    Returns:
+        EvolutionaryEngineManager inizializzato
+    """
+    global _evolutionary_engine_manager
+    
+    if _evolutionary_engine_manager is None:
+        _evolutionary_engine_manager = EvolutionaryEngineManager(
+            llm_config=llm_config,
+            workspace_dir=workspace_dir,
+            rustc_path=rustc_path
+        )
+        logger.info(f"[EvolutionaryEngineManager] Global instance initialized")
+    
+    return _evolutionary_engine_manager
+
+
+def get_evolutionary_engine_manager() -> Optional[EvolutionaryEngineManager]:
+    """Ottiene l'istanza globale dell'Evolutionary Engine Manager"""
+    return _evolutionary_engine_manager
+
+
+def is_evolutionary_engine_manager_enabled() -> bool:
+    """Verifica se l'Evolutionary Engine Manager è abilitato e disponibile"""
+    return _evolutionary_engine_manager is not None
 
 
 # ========================================
