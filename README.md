@@ -321,12 +321,19 @@ POST /governance/ratify/{proposal_id}?channel={CHANNEL_ID}
 # Propose acquisition
 POST /proposals?channel={CHANNEL_ID}
 {
-  "proposal_type": "network_operation",
-  "params": {
+  "title": "Acquire Geolocation API Tool",
+  "description": "Proposal to acquire a tool for geolocation services.",
+  "proposal_type": "command",
+  "command": {
     "operation": "acquire_common_tool",
-    "tool_id": "geolocation_api",
-    "monthly_cost_sp": 100,
-    "credentials_to_encrypt": "API_KEY_HERE"
+    "params": {
+      "tool_id": "geolocation_api",
+      "monthly_cost_sp": 100,
+      "credentials_to_encrypt": "API_KEY_HERE",
+      "description": "Geolocation API for analytics tasks",
+      "type": "api_key",
+      "channel": "{CHANNEL_ID}"
+    }
   }
 }
 
