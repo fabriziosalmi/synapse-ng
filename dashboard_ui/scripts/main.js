@@ -130,20 +130,23 @@ async function connect(endpoint) {
 function setupAPIListeners() {
     synapseAPI.on('connected', (state) => {
         console.log('[Dashboard] Connected to node');
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.classList.remove('disconnected');
+            statusEl.classList.add('connected');
+            statusEl.querySelector('.status-text').textContent = 'Connected';
+        }
         updateAllPanels();
     });
 
     synapseAPI.on('disconnected', (error) => {
         console.log('[Dashboard] Disconnected from node');
-        const statusIndicator = document.getElementById('connectionStatus');
-        const nodeIdDisplay = document.getElementById('nodeId');
+        const statusEl = document.getElementById('connectionStatus');
         
-        if (statusIndicator) {
-            statusIndicator.classList.remove('connected');
-            statusIndicator.classList.add('disconnected');
-        }
-        if (nodeIdDisplay) {
-            nodeIdDisplay.textContent = 'Disconnected';
+        if (statusEl) {
+            statusEl.classList.remove('connected');
+            statusEl.classList.add('disconnected');
+            statusEl.querySelector('.status-text').textContent = 'Disconnected';
         }
     });
 

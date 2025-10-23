@@ -3,168 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Synapse-NG Organism Consciousness Dashboard</title>
-    <link rel="stylesheet" href="styles/main.css">
-    <link rel="stylesheet" href="styles/panels.css">
-    <link rel="stylesheet" href="styles/components.css">
+    <title>Synapse-NG Organism Dashboard</title>
+    <link rel="stylesheet" href="styles/main-modern.css?v=3">
+    <link rel="stylesheet" href="styles/health-monitor.css?v=3">
+    <link rel="stylesheet" href="styles/governance-monitor.css?v=3">
+    <link rel="stylesheet" href="styles/evolution-monitor.css?v=3">
 </head>
 <body>
-    <!-- Header: Organism Status -->
+    <!-- ========== HEADER ========== -->
     <header class="organism-header">
-        <div class="header-left">
-            <div class="organism-logo">🧬</div>
-            <div class="header-info">
-                <h1>Synapse-NG Organism</h1>
-                <div class="connection-status">
-                    <span class="status-indicator" id="connectionStatus"></span>
-                    <span id="nodeId">Connecting...</span>
+        <div class="header-content">
+            <div class="header-left">
+                <div class="organism-logo">S</div>
+                <div class="organism-title">
+                    <h1>Synapse-NG Organism</h1>
+                    <span class="subtitle">Consciousness Monitor</span>
                 </div>
             </div>
-        </div>
-        <div class="header-right">
-            <div class="config-controls">
-                <label for="nodeEndpoint">Node Endpoint:</label>
-                <input type="text" id="nodeEndpoint" value="http://localhost:8001" />
-                <button id="connectBtn" class="btn-primary">Connect</button>
+            
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-indicator"></span>
+                <span class="status-text">Connecting...</span>
             </div>
-            <div class="last-update">
-                Last update: <span id="lastUpdate">Never</span>
-            </div>
+            
+            <button class="config-btn" id="configBtn">⚙️ Settings</button>
         </div>
     </header>
 
     <!-- Main Container: Three Consciousness Panels -->
-    <main class="consciousness-grid">
+        <!-- ========== DASHBOARD PANELS ========== -->
+    <main class="organism-dashboard">
         
         <!-- PANEL 1: Homeostatic System (Physical Health) -->
-        <section class="panel homeostatic-panel">
+        <section class="consciousness-panel" id="homeostaticPanel">
             <div class="panel-header">
-                <h2>🫀 Homeostatic System</h2>
-                <p class="panel-subtitle">Physical Health & Vital Signs</p>
+                <div class="panel-title">
+                    <div class="panel-icon">�</div>
+                    <div>
+                        <h2>Homeostatic System</h2>
+                        <p class="panel-subtitle">Network Health & Vital Signs</p>
+                    </div>
+                </div>
+                <span class="panel-status active">Active</span>
             </div>
             
-            <div class="panel-content">
-                <!-- Vital Signs -->
-                <div class="vital-signs">
-                    <div class="vital-card" data-metric="latency">
-                        <div class="vital-icon">⚡</div>
-                        <div class="vital-info">
-                            <div class="vital-label">Propagation Latency</div>
-                            <div class="vital-value" id="latencyValue">-- ms</div>
-                            <div class="vital-target" id="latencyTarget">Target: -- ms</div>
-                        </div>
-                        <div class="vital-status" id="latencyStatus"></div>
-                    </div>
+            <!-- Vital Signs Grid -->
+            <div class="vital-signs-grid" id="vitalSignsGrid">
 
-                    <div class="vital-card" data-metric="peers">
-                        <div class="vital-icon">🔗</div>
-                        <div class="vital-info">
-                            <div class="vital-label">Active Peers</div>
-                            <div class="vital-value" id="peersValue">--</div>
-                            <div class="vital-target" id="peersTarget">Target: --</div>
-                        </div>
-                        <div class="vital-status" id="peersStatus"></div>
-                    </div>
-
-                    <div class="vital-card" data-metric="consensus">
-                        <div class="vital-icon">🎯</div>
-                        <div class="vital-info">
-                            <div class="vital-label">Consensus Ratio</div>
-                            <div class="vital-value" id="consensusValue">--%</div>
-                            <div class="vital-target" id="consensusTarget">Target: --%</div>
-                        </div>
-                        <div class="vital-status" id="consensusStatus"></div>
-                    </div>
-
-                    <div class="vital-card" data-metric="messages">
-                        <div class="vital-icon">📨</div>
-                        <div class="vital-info">
-                            <div class="vital-label">Messages Propagated</div>
-                            <div class="vital-value" id="messagesValue">--</div>
-                            <div class="vital-target" id="messagesTarget">Target: --</div>
-                        </div>
-                        <div class="vital-status" id="messagesStatus"></div>
-                    </div>
-                </div>
-
-                <!-- Active Diagnoses -->
-                <div class="diagnoses-section">
-                    <h3 class="section-title">🩺 Active Diagnoses</h3>
-                    <div class="diagnoses-container" id="diagnosesContainer">
-                        <!-- Diagnosis cards will be inserted here -->
-                        <div class="empty-state">No health issues detected - Organism is healthy</div>
-                    </div>
-                </div>
-
-                <!-- Immune Proposals -->
-                <div class="immune-proposals-section">
-                    <h3 class="section-title">💉 Autonomous Remedies</h3>
-                    <div class="immune-proposals-container" id="immuneProposalsContainer">
-                        <!-- Immune proposals will be inserted here -->
-                        <div class="empty-state">No autonomous remedies proposed</div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- PANEL 2: Nervous System (Decision Making) -->
-        <section class="panel nervous-panel">
+        <!-- PANEL 2: Nervous System (Coordination & Decisions) -->
+        <section class="consciousness-panel" id="nervousPanel">
             <div class="panel-header">
-                <h2>🧠 Nervous System</h2>
-                <p class="panel-subtitle">Governance & Decision Making</p>
-            </div>
-            
-            <div class="panel-content">
-                <!-- Governance Kanban -->
-                <div class="governance-kanban">
-                    <div class="kanban-column">
-                        <div class="kanban-header kanban-open">
-                            <h4>📝 Open</h4>
-                            <span class="count" id="openCount">0</span>
-                        </div>
-                        <div class="kanban-cards" id="openProposals"></div>
-                    </div>
-
-                    <div class="kanban-column">
-                        <div class="kanban-header kanban-voting">
-                            <h4>🗳️ Voting</h4>
-                            <span class="count" id="votingCount">0</span>
-                        </div>
-                        <div class="kanban-cards" id="votingProposals"></div>
-                    </div>
-
-                    <div class="kanban-column">
-                        <div class="kanban-header kanban-ratifying">
-                            <h4>⏳ Ratifying</h4>
-                            <span class="count" id="ratifyingCount">0</span>
-                        </div>
-                        <div class="kanban-cards" id="ratifyingProposals"></div>
-                    </div>
-
-                    <div class="kanban-column">
-                        <div class="kanban-header kanban-closed">
-                            <h4>✓ Closed</h4>
-                            <span class="count" id="closedCount">0</span>
-                        </div>
-                        <div class="kanban-cards" id="closedProposals"></div>
+                <div class="panel-title">
+                    <div class="panel-icon">⚡</div>
+                    <div>
+                        <h2>Nervous System</h2>
+                        <p class="panel-subtitle">Coordination & Decision Making</p>
                     </div>
                 </div>
-
-                <!-- Treasury Overview -->
-                <div class="treasury-section">
-                    <h3 class="section-title">💰 Network Treasury</h3>
-                    <div class="treasury-channels" id="treasuryChannels">
-                        <!-- Treasury channels will be inserted here -->
-                    </div>
-                </div>
+                <span class="panel-status active">Active</span>
             </div>
-        </section>
-
+        
         <!-- PANEL 3: Evolutionary Genome (Long-term Thinking) -->
-        <section class="panel genome-panel">
+        <section class="consciousness-panel" id="evolutionaryPanel">
             <div class="panel-header">
-                <h2>🧬 Evolutionary Genome</h2>
-                <p class="panel-subtitle">Self-Improvement & Code Evolution</p>
+                <div class="panel-title">
+                    <div class="panel-icon">🧬</div>
+                    <div>
+                        <h2>Evolutionary Genome</h2>
+                        <p class="panel-subtitle">Self-Improvement & Code Evolution</p>
+                    </div>
+                </div>
+                <span class="panel-status active">Active</span>
             </div>
             
             <div class="panel-content">
@@ -257,12 +166,32 @@
         </div>
     </div>
 
+    <!-- Modal: Configuration -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ Connection Settings</h3>
+                <button class="modal-close" id="closeConfig">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div>
+                        <label for="nodeEndpoint" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Node Endpoint:</label>
+                        <input type="text" id="nodeEndpoint" value="http://localhost:8001" 
+                               style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-medium); border-radius: var(--radius-md); font-family: monospace;">
+                    </div>
+                    <button id="connectBtn" class="config-btn" style="padding: 0.75rem;">Connect</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
-    <script src="scripts/api-client.js?v=2"></script>
-    <script src="scripts/health-monitor.js?v=2"></script>
-    <script src="scripts/governance-monitor.js?v=2"></script>
-    <script src="scripts/evolution-monitor.js?v=2"></script>
-    <script src="scripts/vote-simulator.js?v=2"></script>
-    <script src="scripts/main.js?v=2"></script>
+    <script src="scripts/api-client.js?v=3"></script>
+    <script src="scripts/health-monitor.js?v=3"></script>
+    <script src="scripts/governance-monitor.js?v=3"></script>
+    <script src="scripts/evolution-monitor.js?v=3"></script>
+    <script src="scripts/vote-simulator.js?v=3"></script>
+    <script src="scripts/main.js?v=3"></script>
 </body>
 </html>
