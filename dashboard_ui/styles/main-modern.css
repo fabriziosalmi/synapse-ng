@@ -149,16 +149,16 @@ body {
     border-bottom: 1px solid var(--border-light);
     backdrop-filter: blur(12px);
     box-shadow: var(--shadow-sm);
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-5) var(--space-8);
 }
 
 .header-content {
-    max-width: 1600px;
+    max-width: 1800px;
     margin: 0 auto;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: var(--space-6);
+    gap: var(--space-8);
 }
 
 .header-left {
@@ -322,9 +322,10 @@ body {
 }
 
 .panel-title h2 {
-    font-size: var(--font-xl);
+    font-size: var(--font-2xl);
     font-weight: var(--font-semibold);
     color: var(--text-primary);
+    line-height: 1.2;
 }
 
 .panel-subtitle {
@@ -381,10 +382,10 @@ body {
 
 .vital-label {
     font-size: var(--font-sm);
-    font-weight: var(--font-medium);
+    font-weight: var(--font-semibold);
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
 }
 
 .vital-status {
@@ -442,7 +443,7 @@ body {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-lg);
-    padding: var(--space-5);
+    padding: var(--space-6);
 }
 
 .diagnoses-header {
@@ -502,16 +503,16 @@ body {
 }
 
 .empty-state {
-    padding: var(--space-8) var(--space-4);
+    padding: var(--space-12) var(--space-6);
     text-align: center;
     color: var(--text-muted);
-    font-size: var(--font-sm);
+    font-size: var(--font-base);
 }
 
 .empty-state-icon {
-    font-size: var(--font-3xl);
-    margin-bottom: var(--space-3);
-    opacity: 0.5;
+    font-size: 3rem;
+    margin-bottom: var(--space-4);
+    opacity: 0.4;
 }
 
 /* ============================================
@@ -519,18 +520,18 @@ body {
    ============================================ */
 .kanban-board {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: var(--space-4);
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-6);
 }
 
 .kanban-column {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-lg);
-    padding: var(--space-4);
+    padding: var(--space-5);
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-4);
 }
 
 .kanban-header {
