@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, WebSocket, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Literal, Set, List, Optional
 
@@ -100,6 +101,7 @@ from app.immune_system import (
     ProposedRemedy,
     initialize_immune_system,
     get_immune_system,
+    get_immune_system_state,
     is_immune_system_enabled
 )
 
@@ -112,6 +114,20 @@ logging.basicConfig(
 
 app = FastAPI()
 templates = Jinja2Templates(directory="app/templates")
+
+# --- Configurazione CORS per Dashboard ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:15000",
+        "http://localhost:8080",
+        "http://127.0.0.1:15000",
+        "http://127.0.0.1:8080"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Configurazione Identità e Rete ---
 DATA_DIR = "data"
@@ -984,6 +1000,15 @@ async def get_state():
                         "min_bid_amount": min((bid["amount"] for bid in auction.get("bids", {}).values()), default=None),
                         "max_bid_amount": max((bid["amount"] for bid in auction.get("bids", {}).values()), default=None)
                     }
+
+    # Add immune system data to global state
+    try:
+        immune_state = get_immune_system_state()
+        logging.info(f"[get_state] Immune state: enabled={immune_state.get('enabled')}, issues={len(immune_state.get('active_issues', []))}")
+        state_copy["global"]["immune_system"] = immune_state
+    except Exception as e:
+        logging.error(f"[get_state] Error getting immune system state: {e}")
+        state_copy["global"]["immune_system"] = {"enabled": False, "error": str(e)}
 
     return state_copy
 

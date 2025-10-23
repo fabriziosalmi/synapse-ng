@@ -101,6 +101,9 @@ class ImmuneSystemManager:
         self.failed_messages_count: int = 0
         self.total_messages_received: int = 0
         
+        # Last collected metrics (for dashboard)
+        self.last_metrics: Optional[NetworkMetrics] = None
+        
         # Health targets (from config or defaults)
         self.health_targets = DEFAULT_HEALTH_TARGETS.copy()
         
@@ -251,6 +254,9 @@ class ImmuneSystemManager:
             failed_messages=failed_messages,
             timestamp=datetime.now(timezone.utc).isoformat()
         )
+        
+        # Save last metrics snapshot for dashboard
+        self.last_metrics = metrics
         
         # Reset accumulators for next cycle
         self.propagation_latencies = []
@@ -984,6 +990,86 @@ def initialize_immune_system(node_id: str, network_state: Dict, pubsub_manager) 
 def get_immune_system() -> Optional[ImmuneSystemManager]:
     """Ottiene l'istanza globale del sistema immunitario"""
     return _immune_system_manager
+
+
+def get_immune_system_state() -> Dict[str, Any]:
+    """
+    Ottiene lo stato completo del sistema immunitario per la dashboard.
+    
+    Returns:
+        Dict con health metrics, active issues, targets, e status
+    """
+    if _immune_system_manager is None:
+        return {
+            "enabled": False,
+            "health": {},
+            "active_issues": [],
+            "health_targets": {},
+            "last_check": None
+        }
+    
+    manager = _immune_system_manager
+    
+    # Use last collected metrics (from immune system loop) or collect fresh ones
+    if manager.last_metrics is not None:
+        current_metrics = manager.last_metrics
+    else:
+        # First time or no data yet - collect fresh metrics without resetting counters
+        current_metrics = NetworkMetrics(
+            avg_propagation_latency_ms=0.0,
+            total_messages_propagated=0,
+            active_peers=len(manager.network_state.get("global", {}).get("nodes", {})),
+            failed_messages=0,
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+    
+    # Build health status with traffic light indicators
+    health = {
+        "avg_propagation_latency_ms": {
+            "current": current_metrics.avg_propagation_latency_ms,
+            "target": manager.health_targets.get("max_avg_propagation_latency_ms", 1000),
+            "status": "healthy" if current_metrics.avg_propagation_latency_ms <= manager.health_targets.get("max_avg_propagation_latency_ms", 1000) else "warning"
+        },
+        "active_peers": {
+            "current": current_metrics.active_peers,
+            "target": manager.health_targets.get("min_active_peers", 3),
+            "status": "healthy" if current_metrics.active_peers >= manager.health_targets.get("min_active_peers", 3) else "critical"
+        },
+        "consensus_ratio": {
+            "current": 1.0,  # TODO: calculate from actual consensus data
+            "target": manager.health_targets.get("min_consensus_ratio", 0.67),
+            "status": "healthy"
+        },
+        "messages_propagated": {
+            "current": current_metrics.total_messages_propagated,
+            "target": 0,  # No specific target, just informational
+            "status": "healthy"
+        }
+    }
+    
+    # Convert active issues to list of dicts
+    active_issues = [
+        {
+            "issue_type": issue.issue_type,
+            "severity": issue.severity,
+            "current_value": issue.current_value,
+            "target_value": issue.target_value,
+            "diagnosis": issue.description,
+            "recommended_action": issue.recommended_action,
+            "detected_at": issue.detected_at,
+            "issue_source": issue.issue_source
+        }
+        for issue in manager.active_issues.values()
+    ]
+    
+    return {
+        "enabled": manager.running,
+        "health": health,
+        "active_issues": active_issues,
+        "health_targets": manager.health_targets,
+        "last_check": current_metrics.timestamp,
+        "pending_proposals": len(manager.pending_remedy_proposals)
+    }
 
 
 def is_immune_system_enabled() -> bool:
