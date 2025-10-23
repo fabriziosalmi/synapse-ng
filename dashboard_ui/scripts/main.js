@@ -198,6 +198,23 @@ function formatTimestamp(date) {
  * Setup modal controls
  */
 function setupModals() {
+    // Config modal
+    const configModal = document.getElementById('configModal');
+    const configBtn = document.getElementById('configBtn');
+    const closeConfig = document.getElementById('closeConfig');
+
+    if (configBtn) {
+        configBtn.onclick = () => showModal('configModal');
+    }
+    if (closeConfig) {
+        closeConfig.onclick = () => closeModal('configModal');
+    }
+    if (configModal) {
+        configModal.onclick = (e) => {
+            if (e.target === configModal) closeModal('configModal');
+        };
+    }
+
     // Proposal details modal
     const proposalModal = document.getElementById('proposalModal');
     const closeProposal = document.getElementById('closeModal');
