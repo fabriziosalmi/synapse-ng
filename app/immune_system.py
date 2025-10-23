@@ -108,6 +108,12 @@ class ImmuneSystemManager:
         self.active_issues: Dict[str, HealthIssue] = {}
         self.pending_remedy_proposals: Dict[str, str] = {}  # issue_type -> proposal_id
         
+        # Persistent issues tracking (for escalation to code generation)
+        self.persistent_issues: Dict[str, int] = {}  # issue_type -> failure_count
+        
+        # Evolutionary Engine (linked from main.py)
+        self.evolutionary_engine: Optional[Any] = None
+        
         # Loop control
         self.running = False
         self.loop_task: Optional[asyncio.Task] = None
@@ -346,7 +352,71 @@ class ImmuneSystemManager:
                 issues.append(issue)
                 self.active_issues["message_loss"] = issue
         
+        # ====================================================================
+        # ESCALATION LOGIC: Config remedies → Algorithmic solutions
+        # ====================================================================
+        # If an issue persists for multiple cycles despite config changes,
+        # escalate to code generation (Evolutionary Engine)
+        
+        for issue in issues:
+            issue_type = issue.issue_type
+            
+            # Track persistence
+            if issue_type in self.persistent_issues:
+                self.persistent_issues[issue_type] += 1
+            else:
+                self.persistent_issues[issue_type] = 1
+            
+            failure_count = self.persistent_issues[issue_type]
+            
+            # Escalation threshold: 3 consecutive failures
+            ESCALATION_THRESHOLD = 3
+            
+            if failure_count >= ESCALATION_THRESHOLD:
+                logger.warning(f"[ImmuneSystem] Issue '{issue_type}' persisted for {failure_count} cycles")
+                logger.warning(f"[ImmuneSystem] ⚡ ESCALATING to algorithmic solution (Evolutionary Engine)")
+                
+                # Mark for code generation
+                issue.issue_source = "algorithm"
+                issue.affected_component = self._map_issue_to_component(issue_type)
+                issue.recommended_action = "generate_optimized_code"
+                
+                # Reset counter (will retry after code deployment)
+                self.persistent_issues[issue_type] = 0
+        
+        # Clear counters for resolved issues
+        resolved_types = set(self.persistent_issues.keys()) - set(i.issue_type for i in issues)
+        for resolved_type in resolved_types:
+            logger.info(f"[ImmuneSystem] Issue '{resolved_type}' resolved - resetting escalation counter")
+            del self.persistent_issues[resolved_type]
+        
         return issues
+    
+    
+    def _map_issue_to_component(self, issue_type: str) -> str:
+        """
+        Mappa un tipo di issue al componente architetturale responsabile.
+        
+        Questo mapping è critico per l'Evolutionary Engine, che genera
+        codice ottimizzato specifico per ogni componente.
+        
+        Args:
+            issue_type: Tipo di issue (es. "high_latency", "consensus_slow")
+            
+        Returns:
+            Nome del componente architetturale (es. "gossip_protocol")
+        """
+        component_map = {
+            "high_latency": "gossip_protocol",
+            "low_connectivity": "peer_discovery",
+            "message_loss": "message_queue",
+            "consensus_slow": "raft_consensus",
+            "auction_slow": "auction_system",
+            "memory_pressure": "data_structures",
+            "high_cpu": "task_scheduler",
+        }
+        
+        return component_map.get(issue_type, "network_core")
     
     
     def _calculate_severity(self, current: float, target: float, multiplier: float = 2.0) -> str:
@@ -382,6 +452,10 @@ class ImmuneSystemManager:
         Genera e sottomette autonomamente una proposta di governance
         per risolvere un problema di salute.
         
+        LOGICA DECISIONALE:
+        - Se issue_source == "config" → Config remedy (governance config_change)
+        - Se issue_source == "algorithm" → Code generation (EvolutionaryEngine)
+        
         Args:
             issue: Il problema di salute rilevato
         """
@@ -391,7 +465,56 @@ class ImmuneSystemManager:
             logger.info(f"[ImmuneSystem] Issue {issue.issue_type} already has pending proposal {existing_proposal_id}")
             return
         
-        # Generate remedy based on recommended action
+        # ====================================================================
+        # BRANCH 1: ALGORITHMIC SOLUTION (Evolutionary Engine)
+        # ====================================================================
+        if issue.recommended_action == "generate_optimized_code":
+            logger.info(f"[ImmuneSystem] 🧬 Algorithmic issue detected: {issue.issue_type}")
+            logger.info(f"[ImmuneSystem] Component: {issue.affected_component}")
+            logger.info(f"[ImmuneSystem] Calling Evolutionary Engine...")
+            
+            if self.evolutionary_engine is None:
+                logger.warning("[ImmuneSystem] ⚠️  Evolutionary Engine not available")
+                logger.warning("[ImmuneSystem] Falling back to config remedy...")
+                # Fallback to config remedy
+                await self._propose_config_remedy(issue)
+                return
+            
+            # Call EvolutionaryEngine to generate optimized code
+            generated_code = await self._generate_code_solution(issue)
+            
+            if generated_code and hasattr(generated_code, 'wasm_binary') and generated_code.wasm_binary:
+                logger.info(f"[ImmuneSystem] ✓ Code generated successfully")
+                logger.info(f"  Language: {generated_code.language.value if hasattr(generated_code, 'language') else 'Rust'}")
+                logger.info(f"  Component: {generated_code.target_component if hasattr(generated_code, 'target_component') else issue.affected_component}")
+                logger.info(f"  WASM size: {len(generated_code.wasm_binary)} bytes")
+                logger.info(f"  WASM hash: {generated_code.wasm_hash}")
+                
+                # Create code upgrade proposal
+                proposal_id = await self._submit_code_upgrade_proposal(issue, generated_code)
+                
+                if proposal_id:
+                    self.pending_remedy_proposals[issue.issue_type] = proposal_id
+                    logger.info(f"[ImmuneSystem] ✓ Code upgrade proposal submitted: {proposal_id}")
+            else:
+                logger.error("[ImmuneSystem] ✗ Code generation failed")
+                logger.error("[ImmuneSystem] Falling back to config remedy...")
+                await self._propose_config_remedy(issue)
+            
+            return
+        
+        # ====================================================================
+        # BRANCH 2: CONFIG SOLUTION (Standard Remedy)
+        # ====================================================================
+        await self._propose_config_remedy(issue)
+    
+    
+    async def _propose_config_remedy(self, issue: HealthIssue):
+        """
+        Propone un rimedio di configurazione standard.
+        Questo è il metodo esistente per config_change proposals.
+        """
+        # Generate config remedy
         remedy = self._generate_remedy(issue)
         
         if not remedy:
@@ -403,7 +526,250 @@ class ImmuneSystemManager:
         
         if proposal_id:
             self.pending_remedy_proposals[issue.issue_type] = proposal_id
-            logger.info(f"[ImmuneSystem] Successfully proposed remedy: proposal_id={proposal_id}")
+            logger.info(f"[ImmuneSystem] Successfully proposed config remedy: proposal_id={proposal_id}")
+    
+    
+    async def _generate_code_solution(self, issue: HealthIssue):
+        """
+        Chiama l'EvolutionaryEngine per generare codice ottimizzato.
+        
+        Converte HealthIssue → formato compatibile con EvolutionaryEngine
+        e invoca generate_optimized_code().
+        
+        Args:
+            issue: Il problema di salute che richiede soluzione algoritmica
+            
+        Returns:
+            GeneratedCode se successo, None se fallimento
+        """
+        try:
+            # Import EvolutionaryEngine types (lazy import to avoid circular deps)
+            from app.evolutionary_engine import Inefficiency, InefficencyType
+            
+            # Map issue_type to InefficencyType
+            inefficiency_type_map = {
+                "high_latency": InefficencyType.PERFORMANCE,
+                "low_connectivity": InefficencyType.NETWORK_TOPOLOGY,
+                "consensus_slow": InefficencyType.CONSENSUS,
+                "auction_slow": InefficencyType.AUCTION,
+                "message_loss": InefficencyType.PERFORMANCE,
+                "memory_pressure": InefficencyType.RESOURCE_USAGE,
+                "high_cpu": InefficencyType.RESOURCE_USAGE,
+            }
+            
+            inefficiency_type = inefficiency_type_map.get(
+                issue.issue_type,
+                InefficencyType.PERFORMANCE
+            )
+            
+            # Convert HealthIssue to Inefficiency
+            inefficiency = Inefficiency(
+                type=inefficiency_type,
+                description=issue.description,
+                severity=self._severity_to_float(issue.severity),
+                current_metric=issue.current_value,
+                target_metric=issue.target_value,
+                affected_component=issue.affected_component,
+                suggested_improvement=f"Algorithmic optimization for {issue.affected_component}",
+                timestamp=issue.detected_at
+            )
+            
+            # Prepare additional context
+            additional_context = {
+                "node_id": self.node_id,
+                "active_peers": len(self.network_state.get("global", {}).get("nodes", {})),
+                "network_health": "degraded" if issue.severity in ["high", "critical"] else "stable",
+                "failure_history": self.persistent_issues.get(issue.issue_type, 0)
+            }
+            
+            logger.info(f"[ImmuneSystem] Invoking EvolutionaryEngine.generate_optimized_code()")
+            logger.info(f"  Inefficiency type: {inefficiency_type.value}")
+            logger.info(f"  Severity: {inefficiency.severity:.2f}")
+            logger.info(f"  Component: {inefficiency.affected_component}")
+            
+            # Generate optimized code
+            generated_code = await self.evolutionary_engine.generate_optimized_code(
+                issue=inefficiency,
+                additional_context=additional_context
+            )
+            
+            return generated_code
+            
+        except Exception as e:
+            logger.error(f"[ImmuneSystem] Error generating code solution: {e}", exc_info=True)
+            return None
+    
+    
+    def _severity_to_float(self, severity: str) -> float:
+        """
+        Converte severità string → float (0.0-1.0) per EvolutionaryEngine.
+        
+        Args:
+            severity: Severità come stringa ("low", "medium", "high", "critical")
+            
+        Returns:
+            Valore numerico tra 0.0 e 1.0
+        """
+        severity_map = {
+            "low": 0.25,
+            "medium": 0.5,
+            "high": 0.75,
+            "critical": 1.0
+        }
+        return severity_map.get(severity.lower(), 0.5)
+    
+    
+    async def _submit_code_upgrade_proposal(self, issue: HealthIssue, generated_code) -> Optional[str]:
+        """
+        Sottomette una proposta di governance per deploy di nuovo codice WASM.
+        
+        Tipo proposta: "code_upgrade"
+        Contiene: source code, WASM binary (base64), hash, compilation log
+        
+        Args:
+            issue: Il problema originale
+            generated_code: Il codice generato dall'EvolutionaryEngine
+            
+        Returns:
+            proposal_id se successo, None altrimenti
+        """
+        try:
+            import uuid
+            import base64
+            
+            proposal_id = str(uuid.uuid4())
+            
+            # Encode WASM binary as base64
+            wasm_base64 = base64.b64encode(generated_code.wasm_binary).decode('utf-8')
+            
+            # Extract language and component info
+            language = generated_code.language.value if hasattr(generated_code, 'language') else "rust"
+            target_component = generated_code.target_component if hasattr(generated_code, 'target_component') else issue.affected_component
+            estimated_improvement = generated_code.estimated_improvement if hasattr(generated_code, 'estimated_improvement') else 20.0
+            
+            # Construct proposal
+            proposal = {
+                "id": proposal_id,
+                "title": f"[EVOLUTIONARY] Code Upgrade: {target_component}",
+                "description": f"""**🧬 Automated Code Generation by Evolutionary Engine**
+
+The network's immune system has detected a **chronic algorithmic issue** that persisted despite configuration changes. The Evolutionary Engine has generated optimized code to resolve this problem at the architectural level.
+
+---
+
+### 📊 Issue Analysis
+
+**Issue Type**: `{issue.issue_type}`
+**Severity**: `{issue.severity}` 
+**Issue Source**: `{issue.issue_source}`
+**Affected Component**: `{issue.affected_component}`
+
+**Current Performance**: `{issue.current_value:.2f}`
+**Target Performance**: `{issue.target_value:.2f}`
+**Performance Gap**: `{((issue.current_value - issue.target_value) / issue.target_value * 100):.1f}%`
+
+**Problem Description**:
+{issue.description}
+
+---
+
+### 🧬 Generated Solution
+
+**Language**: {language.upper()}
+**Target Component**: `{target_component}`
+**Estimated Improvement**: `{estimated_improvement:.1f}%`
+
+**WASM Binary Details**:
+- **Size**: {len(generated_code.wasm_binary):,} bytes
+- **SHA256**: `{generated_code.wasm_hash}`
+- **Compilation**: ✅ Success
+
+---
+
+### 💻 Source Code ({language.upper()})
+
+```{language}
+{generated_code.source_code}
+```
+
+---
+
+### 🔨 Compilation Log
+
+```
+{generated_code.compilation_log if hasattr(generated_code, 'compilation_log') else 'No compilation log available'}
+```
+
+---
+
+### 🔐 Security & Safety
+
+✅ **Code generated by LLM** with strict safety constraints
+✅ **Compiled for wasm32-unknown-unknown** (sandboxed execution)
+✅ **No filesystem, network, or threading** operations allowed
+✅ **SHA256 hash verification** required before deployment
+✅ **Gradual rollout recommended** (test → staging → production)
+
+---
+
+### 📈 Expected Benefits
+
+- Resolve chronic {issue.issue_type} issue
+- Improve {target_component} performance by ~{estimated_improvement:.0f}%
+- Reduce {issue.issue_type} from {issue.current_value:.1f} to ~{issue.target_value:.1f}
+- Enable network to self-heal at algorithmic level
+
+---
+
+**Detected At**: {issue.detected_at}
+**Proposed By**: Node `{self.node_id}` (Evolutionary Engine)
+**Proposal Type**: `code_upgrade` (requires validator approval)
+""",
+                "proposal_type": "code_upgrade",
+                "params": {
+                    "target_component": target_component,
+                    "wasm_binary_base64": wasm_base64,
+                    "wasm_hash": generated_code.wasm_hash,
+                    "wasm_size_bytes": len(generated_code.wasm_binary),
+                    "source_code": generated_code.source_code,
+                    "language": language,
+                    "estimated_improvement": estimated_improvement,
+                    "issue_type": issue.issue_type,
+                    "issue_severity": issue.severity,
+                    "compilation_success": True
+                },
+                "tags": ["evolutionary_engine", "code_upgrade", "automated", "wasm", issue.issue_type],
+                "author": self.node_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "votes": {},
+                "status": "open",
+                "closes_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),  # 3 days for code review
+                "vote_count": {"yes": 0, "no": 0, "abstain": 0},
+                "result": None
+            }
+            
+            # Add to network state
+            if "global" not in self.network_state:
+                self.network_state["global"] = {}
+            if "proposals" not in self.network_state["global"]:
+                self.network_state["global"]["proposals"] = {}
+            
+            self.network_state["global"]["proposals"][proposal_id] = proposal
+            
+            # Broadcast proposal
+            if self.pubsub_manager:
+                message_payload = {
+                    "action": "code_upgrade_proposal_created",
+                    "proposal": proposal
+                }
+                await self.pubsub_manager.publish("global", message_payload)
+            
+            logger.info(f"[ImmuneSystem] 🧬 Code upgrade proposal {proposal_id} submitted")
+            return proposal_id
+            
+        except Exception as e:
+            logger.error(f"[ImmuneSystem] Error submitting code upgrade proposal: {e}", exc_info=True)
+            return None
     
     
     def _generate_remedy(self, issue: HealthIssue) -> Optional[ProposedRemedy]:
