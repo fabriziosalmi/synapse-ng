@@ -70,8 +70,16 @@ Synapse-NG's knowledge base is organized into thematic guides. Each document is 
 - **Network Singularity** (optional): AI-powered autonomous code generation
 - Collaborative teams for complex multi-skill tasks
 
-### 🔐 Security and Privacy
-**[Security Guide](docs/SECURITY.md)** - The immune system that protects the organism
+### �️ Immune System and Self-Healing
+**[Immune System Guide](docs/IMMUNE_SYSTEM.md)** - The proactive self-healing mechanism
+- **Automated Health Monitoring**: Continuous tracking of network metrics (latency, connectivity, message loss)
+- **Autonomous Diagnosis**: AI-powered detection of performance issues and inefficiencies
+- **Proactive Remedies**: Automatic generation of governance proposals to fix problems
+- **Homeostatic Cycle**: Complete loop from detection → diagnosis → proposal → execution → verification
+- **First true auto-evolution cycle**: Network that senses pain and takes medicine autonomously
+
+### �🔐 Security and Privacy
+**[Security Guide](docs/SECURITY.md)** - The protection layer that safeguards the organism
 - Cryptographic identity (Ed25519), signature verification
 - WebRTC encrypted channels (DTLS/SRTP)
 - Common Tools credential encryption (AESGCM + HKDF key derivation)
@@ -139,6 +147,14 @@ Learn how we use structured prompts, iterative refinement, and AI as a thought p
 - Three-layer authorization (status, task assignment, tool requirement)
 - Automatic monthly maintenance with funding checks
 - Governance-based acquisition/deprecation
+
+🛡️ **Immune System** (October 2025)
+- First complete homeostatic cycle implemented
+- Automated health monitoring (latency, connectivity, message loss)
+- Autonomous diagnosis of network inefficiencies
+- Proactive remedy proposals via governance
+- Self-healing without human intervention
+- Network that "senses pain and takes medicine" autonomously
 
 ---
 
@@ -238,6 +254,7 @@ python3 app/main.py
 - ✅ Auction system
 - ✅ Common Tools execution
 - ✅ Network operations (governance commands)
+- ✅ Immune System (health monitoring, auto-diagnosis, self-healing)
 
 ### Targeted Testing
 
@@ -253,6 +270,9 @@ python3 app/main.py
 
 # Common Tools tests
 ./test_common_tools_experiment.sh
+
+# Immune System tests (homeostatic cycle)
+./test_immune_system.sh
 ```
 
 ---
@@ -356,6 +376,7 @@ For comprehensive guides on each subsystem, see the `/docs` directory:
 | **[GOVERNANCE.md](docs/GOVERNANCE.md)** | Governance, reputation v2, contextual voting |
 | **[ECONOMY.md](docs/ECONOMY.md)** | SP, auctions, treasury, common tools |
 | **[INTELLIGENCE.md](docs/INTELLIGENCE.md)** | AI agents, self-upgrade, network singularity |
+| **[IMMUNE_SYSTEM.md](docs/IMMUNE_SYSTEM.md)** | Proactive self-healing, health monitoring, homeostatic cycle |
 | **[SECURITY.md](docs/SECURITY.md)** | Security model, encryption, threat analysis |
 | **[TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** | Comprehensive testing documentation |
 | **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** | Installation and setup guide |
@@ -368,6 +389,7 @@ For comprehensive guides on each subsystem, see the `/docs` directory:
 - [x] Core P2P network (WebRTC + SynapseSub)
 - [x] Two-tier governance (CRDT + Raft)
 - [x] Reputation system v2 (tag-specialized + decay)
+- [x] Immune System (proactive self-healing + homeostatic cycle)
 - [x] Economic system (SP + auctions + treasury)
 - [x] Common Tools (network-owned resources)
 - [x] Self-upgrade (WASM sandbox)

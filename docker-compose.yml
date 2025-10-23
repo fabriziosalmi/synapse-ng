@@ -23,6 +23,7 @@ services:
       - OWN_URL=http://node-1:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui
       - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
+      - ENABLE_IMMUNE_SYSTEM=true  # Sistema immunitario proattivo
     volumes:
       - ./data/node-1:/app/data
     depends_on:
@@ -38,6 +39,7 @@ services:
       - OWN_URL=http://node-2:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
       - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
+      - ENABLE_IMMUNE_SYSTEM=true  # Sistema immunitario proattivo
     volumes:
       - ./data/node-2:/app/data
     depends_on:
@@ -53,6 +55,7 @@ services:
       - OWN_URL=http://node-3:8000
       - SUBSCRIBED_CHANNELS=sviluppo_ui,marketing
       - INITIAL_BALANCE=1000  # Saldo iniziale SP per modalità test
+      - ENABLE_IMMUNE_SYSTEM=true  # Sistema immunitario proattivo
     volumes:
       - ./data/node-3:/app/data
     depends_on:

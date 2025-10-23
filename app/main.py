@@ -92,6 +92,17 @@ from app.evolutionary_engine import (
     is_evolutionary_engine_available
 )
 
+# --- Immune System (Proactive Self-Healing) ---
+from app.immune_system import (
+    ImmuneSystemManager,
+    NetworkMetrics as ImmuneNetworkMetrics,
+    HealthIssue,
+    ProposedRemedy,
+    initialize_immune_system,
+    get_immune_system,
+    is_immune_system_enabled
+)
+
 # --- Configurazione Logging ---
 logging.basicConfig(
     level=logging.INFO,
@@ -3312,6 +3323,20 @@ async def create_signed_packet(channel_id: str) -> dict:
 async def handle_pubsub_message(topic: str, payload: dict, sender_id: str):
     """Callback per messaggi SynapseSub ricevuti"""
     try:
+        # Track message propagation latency for immune system
+        if "created_at" in payload:
+            try:
+                created_at_iso = payload["created_at"]
+                if isinstance(created_at_iso, str):
+                    created_dt = datetime.fromisoformat(created_at_iso.replace('Z', '+00:00'))
+                    created_timestamp = created_dt.timestamp()
+                    
+                    immune_system = get_immune_system()
+                    if immune_system:
+                        immune_system.record_message_propagation(created_timestamp)
+            except Exception as e:
+                logging.debug(f"Could not track message latency: {e}")
+        
         # Ricostruisci il pacchetto gossip dal payload
         if topic.startswith("channel:") and topic.endswith(":state"):
             # Estrai il channel_id dal topic (formato: "channel:sviluppo_ui:state")
@@ -6006,6 +6031,20 @@ async def on_startup():
     # Avvia command processor (network operations execution)
     asyncio.create_task(command_processor_task())
     logging.info("🔧 Command processor task avviato")
+    
+    # Avvia Immune System (proactive self-healing) 🛡️
+    immune_system_enabled = os.getenv("ENABLE_IMMUNE_SYSTEM", "true").lower() == "true"
+    if immune_system_enabled:
+        logging.info("🛡️ Inizializzazione Immune System...")
+        immune_manager = initialize_immune_system(
+            node_id=NODE_ID,
+            network_state=network_state,
+            pubsub_manager=pubsub_manager
+        )
+        await immune_manager.start()
+        logging.info("✅ Immune System avviato - monitoraggio proattivo attivo!")
+    else:
+        logging.info("⏸️ Immune System disabilitato (ENABLE_IMMUNE_SYSTEM=false)")
     
     # Avvia auction processor (automatic auction closing)
     asyncio.create_task(auction_processor_task())
