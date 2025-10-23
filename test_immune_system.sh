@@ -21,7 +21,8 @@ echo ""
 NODE1="http://localhost:8001"
 NODE2="http://localhost:8002"
 NODE3="http://localhost:8003"
-CHANNEL="global"
+TASK_CHANNEL="sviluppo_ui"  # Channel for creating tasks
+GOVERNANCE_CHANNEL="global"  # Channel for proposals
 
 # Helper functions
 pass() {
@@ -88,7 +89,7 @@ echo ""
 
 info "Verifico che health_targets sia presente nella configurazione globale..."
 
-state=$(curl -s "$NODE1/state?channel=global" | jq -c '.global.config.health_targets // empty')
+state=$(curl -s "$NODE1/state?channel=$GOVERNANCE_CHANNEL" | jq -c '.global.config.health_targets // empty')
 
 if [ -n "$state" ]; then
     pass "health_targets trovato nella config"
@@ -113,7 +114,7 @@ echo ""
 
 # Create 50 tasks to generate significant network traffic
 for i in {1..50}; do
-    response=$(curl -s -X POST "$NODE1/tasks?channel=$CHANNEL" \
+    response=$(curl -s -X POST "$NODE1/tasks?channel=$TASK_CHANNEL" \
         -H "Content-Type: application/json" \
         -d "{
             \"title\": \"Stress Test Task $i\",
@@ -174,7 +175,7 @@ echo ""
 
 info "Cerco proposte generate automaticamente dal sistema immunitario..."
 
-proposals=$(curl -s "$NODE1/state?channel=global" | jq -c '.global.proposals // {}')
+proposals=$(curl -s "$NODE1/state?channel=$GOVERNANCE_CHANNEL" | jq -c '.global.proposals // {}')
 
 immune_proposals=$(echo "$proposals" | jq -c '[.[] | select(.tags[]? == "immune_system")]')
 count=$(echo "$immune_proposals" | jq 'length')
@@ -215,21 +216,21 @@ echo ""
 info "I nodi votano 'yes' sulla proposta del sistema immunitario..."
 
 # Node 1 votes
-response=$(curl -s -X POST "$NODE1/proposals/$IMMUNE_PROPOSAL_ID/vote?channel=$CHANNEL" \
+response=$(curl -s -X POST "$NODE1/proposals/$IMMUNE_PROPOSAL_ID/vote?channel=$GOVERNANCE_CHANNEL" \
     -H "Content-Type: application/json" \
     -d '{"vote": "yes"}')
 
 check_response "$response" "success\|recorded" "Node 1 voto registrato"
 
 # Node 2 votes
-response=$(curl -s -X POST "$NODE2/proposals/$IMMUNE_PROPOSAL_ID/vote?channel=$CHANNEL" \
+response=$(curl -s -X POST "$NODE2/proposals/$IMMUNE_PROPOSAL_ID/vote?channel=$GOVERNANCE_CHANNEL" \
     -H "Content-Type: application/json" \
     -d '{"vote": "yes"}')
 
 check_response "$response" "success\|recorded" "Node 2 voto registrato"
 
 # Node 3 votes
-response=$(curl -s -X POST "$NODE3/proposals/$IMMUNE_PROPOSAL_ID/vote?channel=$CHANNEL" \
+response=$(curl -s -X POST "$NODE3/proposals/$IMMUNE_PROPOSAL_ID/vote?channel=$GOVERNANCE_CHANNEL" \
     -H "Content-Type: application/json" \
     -d '{"vote": "yes"}')
 
@@ -252,7 +253,7 @@ echo ""
 
 info "Chiudo la proposta per contare i voti..."
 
-response=$(curl -s -X POST "$NODE1/proposals/$IMMUNE_PROPOSAL_ID/close?channel=$CHANNEL")
+response=$(curl -s -X POST "$NODE1/proposals/$IMMUNE_PROPOSAL_ID/close?channel=$GOVERNANCE_CHANNEL")
 
 check_response "$response" "success\|approved\|closed" "Proposta chiusa e conteggiata"
 
@@ -260,7 +261,7 @@ info "Attendo 5 secondi per tallying..."
 sleep 5
 
 # Check proposal status
-proposal=$(curl -s "$NODE1/state?channel=global" | jq -c ".global.proposals[\"$IMMUNE_PROPOSAL_ID\"]")
+proposal=$(curl -s "$NODE1/state?channel=$GOVERNANCE_CHANNEL" | jq -c ".global.proposals[\"$IMMUNE_PROPOSAL_ID\"]")
 status=$(echo "$proposal" | jq -r '.status')
 result=$(echo "$proposal" | jq -r '.result')
 
@@ -287,14 +288,14 @@ echo ""
 
 info "Verifico se proposta è in pending_operations..."
 
-pending=$(curl -s "$NODE1/state?channel=global" | jq -c '.global.pending_operations // []')
+pending=$(curl -s "$NODE1/state?channel=$GOVERNANCE_CHANNEL" | jq -c '.global.pending_operations // []')
 pending_count=$(echo "$pending" | jq 'length')
 
 if [ "$pending_count" -gt 0 ]; then
     pass "Proposta in coda per ratifica validator ($pending_count pending)"
     
     # Get validator set
-    validators=$(curl -s "$NODE1/state?channel=global" | jq -r '.global.validator_set[]?')
+    validators=$(curl -s "$NODE1/state?channel=$GOVERNANCE_CHANNEL" | jq -r '.global.validator_set[]?')
     
     if [ -n "$validators" ]; then
         info "Validator set trovato - eseguo ratifiche..."
@@ -310,7 +311,7 @@ if [ "$pending_count" -gt 0 ]; then
                 validator_url=$NODE3
             fi
             
-            response=$(curl -s -X POST "$validator_url/governance/ratify/$IMMUNE_PROPOSAL_ID?channel=$CHANNEL")
+            response=$(curl -s -X POST "$validator_url/governance/ratify/$IMMUNE_PROPOSAL_ID?channel=$GOVERNANCE_CHANNEL")
             
             if echo "$response" | grep -q "success\|ratified\|approved"; then
                 pass "Validator $validator_id ratificato"
@@ -341,7 +342,7 @@ echo ""
 info "Verifico che il config change sia stato applicato..."
 
 # Get current config
-current_config=$(curl -s "$NODE1/state?channel=global" | jq -c '.global.config')
+current_config=$(curl -s "$NODE1/state?channel=$GOVERNANCE_CHANNEL" | jq -c '.global.config')
 
 # Check if config was modified (look for increased values)
 echo ""
@@ -354,7 +355,7 @@ echo "$current_config" | jq '{
 }'
 
 # Check execution log for applied command
-execution_log=$(curl -s "$NODE1/state?channel=global" | jq -c '.global.execution_log // []')
+execution_log=$(curl -s "$NODE1/state?channel=$GOVERNANCE_CHANNEL" | jq -c '.global.execution_log // []')
 execution_count=$(echo "$execution_log" | jq 'length')
 
 if [ "$execution_count" -gt 0 ]; then
