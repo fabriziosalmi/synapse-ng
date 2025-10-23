@@ -61,19 +61,19 @@ class HealthMonitor {
             lowerIsBetter: false
         });
 
-        // Consensus
+        // Consensus Ratio (0-1 scale, higher is better)
         this.updateVitalCard('consensus', {
-            value: metrics.consensus,
-            target: metrics.targets.max_consensus_time_ms || 10000,
-            unit: 'ms',
-            lowerIsBetter: true
+            value: Math.round(metrics.consensus * 100), // Convert to percentage
+            target: Math.round((metrics.targets.max_consensus_time_ms || 0.67) * 100),
+            unit: '%',
+            lowerIsBetter: false
         });
 
-        // Messages
+        // Messages Propagated (count, not a rate)
         this.updateVitalCard('messages', {
-            value: metrics.messageSuccess * 100,
-            target: (metrics.targets.min_message_success_rate || 0.95) * 100,
-            unit: '%',
+            value: metrics.messageSuccess,
+            target: metrics.targets.min_message_success_rate || 0,
+            unit: '',
             lowerIsBetter: false
         });
     }

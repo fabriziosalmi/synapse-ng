@@ -122,7 +122,15 @@ class SynapseAPI {
      * Get current node ID
      */
     getNodeId() {
-        return this.lastState?.node_id || 'unknown';
+        // Try to get the first node ID from global.nodes
+        const nodes = this.lastState?.global?.nodes;
+        if (nodes && typeof nodes === 'object') {
+            const nodeIds = Object.keys(nodes);
+            if (nodeIds.length > 0) {
+                return nodeIds[0]; // Return first node ID
+            }
+        }
+        return 'unknown';
     }
 
     /**
@@ -134,12 +142,19 @@ class SynapseAPI {
         }
 
         const immune = this.lastState.global.immune_system;
+        const health = immune.health || {};
+        
         return {
-            latency: immune.health_metrics?.avg_propagation_latency_ms || 0,
-            peers: immune.health_metrics?.active_peers || 0,
-            consensus: immune.health_metrics?.avg_consensus_time_ms || 0,
-            messageSuccess: immune.health_metrics?.message_success_rate || 0,
-            targets: immune.health_targets || {}
+            latency: health.avg_propagation_latency_ms?.current || 0,
+            peers: health.active_peers?.current || 0,
+            consensus: health.consensus_ratio?.current || 0,
+            messageSuccess: health.messages_propagated?.current || 0,
+            targets: {
+                max_latency_ms: health.avg_propagation_latency_ms?.target || 5000,
+                min_peers: health.active_peers?.target || 3,
+                max_consensus_time_ms: health.consensus_ratio?.target || 10000,
+                min_message_success_rate: health.messages_propagated?.target || 0
+            }
         };
     }
 
