@@ -49,17 +49,17 @@ xdg-open dashboard_ui/index.html
 ### Option 2: Use Python HTTP Server
 ```bash
 cd dashboard_ui
-python3 -m http.server 8080
+python3 -m http.server 15000
 
-# Then open: http://localhost:8080
+# Then open: http://localhost:15000
 ```
 
 ### Option 3: Use Node.js HTTP Server
 ```bash
 cd dashboard_ui
-npx http-server -p 8080
+npx http-server -p 15000
 
-# Then open: http://localhost:8080
+# Then open: http://localhost:15000
 ```
 
 ## 🔌 Connecting to Your Node
