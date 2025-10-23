@@ -160,8 +160,9 @@ class CreateTaskPayload(BaseModel):
 class CreateProposalPayload(BaseModel):
     title: str
     description: str = ""
-    proposal_type: str = "generic"  # "generic", "config_change", "network_operation", "code_upgrade"
+    proposal_type: str = "generic"  # "generic", "config_change", "network_operation", "command", "code_upgrade"
     params: dict = {}  # For config_change: {"key": "value"}, for network_operation: {"operation": "...", ...}, for code_upgrade: {"package_url": "...", "package_hash": "...", "version": "..."}
+    command: dict = {}  # For command: {"operation": "acquire_common_tool"|"deprecate_common_tool", "params": {...}}
     schema_name: str = "proposal_v1"  # Schema da usare per validazione
     tags: List[str] = []  # Tags opzionali
 
@@ -341,8 +342,9 @@ network_state = {
                 "fields": {
                     "title": {"type": "string", "required": True, "min_length": 1, "max_length": 200},
                     "description": {"type": "string", "required": False, "default": ""},
-                    "proposal_type": {"type": "enum", "required": True, "values": ["generic", "config_change", "network_operation"], "default": "generic"},
+                    "proposal_type": {"type": "enum", "required": True, "values": ["generic", "config_change", "network_operation", "command"], "default": "generic"},
                     "params": {"type": "object", "required": False, "default": {}},
+                    "command": {"type": "object", "required": False, "default": {}},
                     "tags": {"type": "list[string]", "required": False, "default": []}
                 },
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -2634,6 +2636,7 @@ async def create_proposal(channel: str, payload: CreateProposalPayload):
         "description": payload.description,
         "proposal_type": payload.proposal_type,
         "params": payload.params,
+        "command": payload.command,
         "tags": payload.tags
     }
     
@@ -2657,6 +2660,7 @@ async def create_proposal(channel: str, payload: CreateProposalPayload):
             "description": payload.description,
             "proposal_type": payload.proposal_type,  # Usa il nome corretto del campo
             "params": payload.params,
+            "command": payload.command,  # Aggiungi il campo command
             "tags": payload.tags,
             "schema_name": payload.schema_name,  # Salva quale schema è stato usato
             "proposer": NODE_ID,
@@ -2882,6 +2886,35 @@ async def close_proposal(proposal_id: str, channel: str):
                         "error": f"Chiave '{key}' non trovata nella configurazione"
                     }
                     logging.warning(f"⚠️  Esecuzione config fallita: chiave '{key}' non valida")
+
+            # COMMAND: esecuzione automatica immediata tramite dispatch_command
+            elif proposal_type == "command":
+                command = proposal.get("command", {})
+                if not command or "operation" not in command:
+                    proposal["execution_result"] = {
+                        "success": False,
+                        "error": "Campo 'command.operation' mancante"
+                    }
+                    logging.warning(f"⚠️  Esecuzione command fallita: campo 'operation' mancante")
+                else:
+                    try:
+                        # Esegui il comando tramite dispatch_command
+                        result = dispatch_command(command)
+                        proposal["status"] = "executed" if result.get("success") else "failed"
+                        proposal["execution_result"] = result
+                        proposal["executed_at"] = datetime.now(timezone.utc).isoformat()
+                        
+                        if result.get("success"):
+                            logging.info(f"⚡ Command auto-eseguito: {command['operation']} (proposta {proposal_id[:8]}...)")
+                        else:
+                            logging.warning(f"⚠️  Command fallito: {command['operation']} - {result.get('error', 'Unknown error')}")
+                    except Exception as e:
+                        proposal["status"] = "failed"
+                        proposal["execution_result"] = {
+                            "success": False,
+                            "error": str(e)
+                        }
+                        logging.error(f"❌ Eccezione esecuzione command: {command.get('operation', 'unknown')} - {e}")
 
             # NETWORK_OPERATION: richiede ratifica del consiglio (Raft)
             elif proposal_type == "network_operation":
@@ -4514,7 +4547,7 @@ def calculate_balances(full_state: dict) -> Dict[str, int]:
 
                 # Se il task è completato, l'assignee guadagna reward SP (meno la tassa)
                 if status == "completed" and assignee and assignee in balances:
-                    tax_amount = int(reward * TAX_RATE)
+                    tax_amount = max(1, round(reward * TAX_RATE))  # Minimo 1 SP, arrotondato
                     net_reward = reward - tax_amount
                     balances[assignee] += net_reward
                     # La tassa va alla tesoreria (calcolata in calculate_treasuries)
@@ -4546,6 +4579,11 @@ def calculate_treasuries(full_state: dict) -> Dict[str, int]:
             continue
 
         treasury = INITIAL_TREASURY
+        
+        # DEBUG: Count tasks
+        tasks = channel_data.get("tasks", {})
+        completed_tasks = [t for t in tasks.values() if t.get("status") == "completed"]
+        logging.info(f"🔍 Treasury calc for '{channel_id}': {len(tasks)} tasks, {len(completed_tasks)} completed")
 
         for task in channel_data.get("tasks", {}).values():
             reward = task.get("reward", 0)
@@ -4553,6 +4591,9 @@ def calculate_treasuries(full_state: dict) -> Dict[str, int]:
             if reward > 0:
                 creator = task.get("creator")
                 status = task.get("status")
+                
+                # DEBUG: Log task details
+                logging.info(f"   Task: reward={reward}, creator={creator[:16] if creator else None}..., status={status}")
 
                 # Se il task è stato creato dal canale (treasury-funded)
                 if creator == f"channel:{channel_id}":
@@ -4562,15 +4603,18 @@ def calculate_treasuries(full_state: dict) -> Dict[str, int]:
                     # Se completato, la tassa torna alla tesoreria
                     # (effettivamente solo net_reward esce dalla tesoreria)
                     if status == "completed":
-                        tax_amount = int(reward * TAX_RATE)
+                        tax_amount = max(1, round(reward * TAX_RATE))  # Minimo 1 SP, arrotondato
                         treasury += tax_amount
+                        logging.info(f"   💰 Treasury-funded task completed: +{tax_amount} SP tax back")
 
                 # Se il task è di un utente normale e completato
                 elif status == "completed" and creator:
                     # La tesoreria riceve la tassa
-                    tax_amount = int(reward * TAX_RATE)
+                    tax_amount = max(1, round(reward * TAX_RATE))  # Minimo 1 SP, arrotondato
                     treasury += tax_amount
+                    logging.info(f"   💰 User task completed: +{tax_amount} SP tax")
 
+        logging.info(f"   📊 Final treasury for '{channel_id}': {treasury} SP")
         treasuries[channel_id] = treasury
 
     return treasuries
@@ -5577,6 +5621,34 @@ async def proposal_auto_close_loop():
                                         "error": f"Chiave config '{key}' non valida"
                                     }
                                     logging.warning(f"⚠️  Auto-esecuzione config fallita: chiave '{key}' non valida")
+
+                            # COMMAND: esegui immediatamente tramite dispatch_command
+                            elif proposal_type == "command":
+                                command = proposal.get("command", {})
+                                if not command or "operation" not in command:
+                                    proposal["execution_result"] = {
+                                        "success": False,
+                                        "error": "Campo 'command.operation' mancante"
+                                    }
+                                    logging.warning(f"⚠️  Auto-esecuzione command fallita: campo 'operation' mancante")
+                                else:
+                                    try:
+                                        result = dispatch_command(command)
+                                        proposal["status"] = "executed" if result.get("success") else "failed"
+                                        proposal["execution_result"] = result
+                                        proposal["executed_at"] = datetime.now(timezone.utc).isoformat()
+                                        
+                                        if result.get("success"):
+                                            logging.info(f"⚡ Command auto-eseguito: {command['operation']} (proposta {proposal_id[:8]}...)")
+                                        else:
+                                            logging.warning(f"⚠️  Command auto-esecuzione fallita: {command['operation']} - {result.get('error', 'Unknown error')}")
+                                    except Exception as e:
+                                        proposal["status"] = "failed"
+                                        proposal["execution_result"] = {
+                                            "success": False,
+                                            "error": str(e)
+                                        }
+                                        logging.error(f"❌ Eccezione auto-esecuzione command: {command.get('operation', 'unknown')} - {e}")
 
                             # NETWORK_OPERATION: pending ratification
                             elif proposal_type == "network_operation":

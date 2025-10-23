@@ -49,6 +49,29 @@
 
 ## 💰 Economic System
 
+**Token economics and resource management:**
+
+- **[Treasury & Transaction Tax](TREASURY_SYSTEM.md)** - Economic model
+  - 2% transaction tax
+  - Channel-specific treasuries
+  - Treasury-funded tasks
+  - Balance calculation
+
+### Common Tools System (NEW!)
+- **[Common Tools System](COMMON_TOOLS_SYSTEM.md)** - Digital Common Goods
+  - Collective tool ownership
+  - Treasury-funded subscriptions
+  - Secure credential management
+  - Governance-based acquisition/deprecation
+
+#### Common Tools Testing
+- **[Quick Start Guide](COMMON_TOOLS_TESTING_QUICKSTART.md)** - Get started in 60 seconds
+- **[Test Design Document](COMMON_TOOLS_TEST_DESIGN.md)** - Complete test scenarios
+- **[Test Matrix](COMMON_TOOLS_TEST_MATRIX.md)** - Coverage and test tracking
+- **[Test Metrics](COMMON_TOOLS_TEST_METRICS.md)** - Performance and quality metrics
+
+## 💰 Economic System (Legacy)
+
 **Incentives and resource management:**
 
 - **[Economic System](ECONOMY.md)** - Synapse Points, treasuries, and rewards

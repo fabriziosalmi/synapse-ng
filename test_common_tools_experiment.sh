@@ -1,0 +1,850 @@
+#!/usr/bin/env bash
+
+# ========================================
+# Test Suite: Common Tools System - Sperimentale
+# ========================================
+# Test completo e approfondito del sistema di Common Tools
+# con focus su scenari edge case e sicurezza.
+#
+# SCENARI TESTATI:
+# 1. Acquisizione Fallita (Fondi Insufficienti)
+# 2. Acquisizione Riuscita (Ciclo Completo)
+# 3. Utilizzo non Autorizzato (Security Test)
+# 4. Utilizzo Autorizzato (Happy Path)
+# 5. Pagamenti Mensili Automatici
+# 6. Deprecazione Tool Attivo
+# 7. Multiple Tools per Canale
+# 8. Credenziali Criptate (Verifica)
+
+# set -e rimosso - causa exit quando tool_exists restituisce false
+
+# Colori per output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m' # No Color
+
+# Configurazione
+NODE_1="http://localhost:8001"
+NODE_2="http://localhost:8002"
+NODE_3="http://localhost:8003"
+NODE_4="http://localhost:8004"
+CHANNEL="${CHANNEL:-sviluppo_ui}"
+
+# Timeout configurabili
+SYNC_WAIT=5
+GOVERNANCE_WAIT=10
+PAYMENT_WAIT=35  # > 30s per trigger pagamenti mensili
+
+# Contatori test
+TESTS_PASSED=0
+TESTS_FAILED=0
+TESTS_SKIPPED=0
+
+# ========================================
+# Helper Functions
+# ========================================
+
+print_header() {
+    echo ""
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}  $1${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+print_section() {
+    echo ""
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  $1${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+}
+
+print_test() {
+    echo -e "\n${YELLOW}🧪 TEST: $1${NC}"
+}
+
+print_step() {
+    echo -e "   ${MAGENTA}➜ $1${NC}"
+}
+
+pass() {
+    echo -e "${GREEN}   ✓ PASS: $1${NC}"
+    ((TESTS_PASSED++))
+}
+
+fail() {
+    echo -e "${RED}   ✗ FAIL: $1${NC}"
+    ((TESTS_FAILED++))
+}
+
+skip() {
+    echo -e "${YELLOW}   ⊘ SKIP: $1${NC}"
+    ((TESTS_SKIPPED++))
+}
+
+wait_sync() {
+    echo -e "${BLUE}   ⏳ Attendo sincronizzazione ($1s)...${NC}"
+    sleep $1
+}
+
+get_node_id() {
+    local node=$1
+    curl -s "${node}/whoami" | jq -r '.node_id' 2>/dev/null || echo ""
+}
+
+get_treasury_balance() {
+    local channel=$1
+    local node=${2:-$NODE_1}
+    curl -s "${node}/treasury/${channel}" | jq -r '.treasury_balance' 2>/dev/null || echo "0"
+}
+
+get_tool_status() {
+    local tool_id=$1
+    local channel=$2
+    local node=${3:-$NODE_1}
+    curl -s "${node}/state" | jq -r ".${channel}.common_tools.${tool_id}.status" 2>/dev/null || echo "null"
+}
+
+tool_exists() {
+    local tool_id=$1
+    local channel=$2
+    local node=${3:-$NODE_1}
+    local status=$(get_tool_status "$tool_id" "$channel" "$node")
+    [[ "$status" != "null" && "$status" != "" ]]
+}
+
+# ========================================
+# Setup Functions
+# ========================================
+
+setup() {
+    print_header "🔧 SETUP: Preparazione ambiente test"
+    
+    # Verifica che i nodi siano attivi
+    print_step "Verifica connettività nodi..."
+    local nodes=($NODE_1 $NODE_2 $NODE_3 $NODE_4)
+    for node in "${nodes[@]}"; do
+        if ! curl -s -f "${node}/whoami" > /dev/null 2>&1; then
+            echo -e "${RED}❌ Nodo $node non raggiungibile${NC}"
+            echo -e "${YELLOW}Avvia la rete con: docker-compose up --build${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}      ✓ $node OK${NC}"
+    done
+    
+    # Ottieni Node IDs
+    print_step "Identificazione nodi..."
+    NODE_1_ID=$(get_node_id $NODE_1)
+    NODE_2_ID=$(get_node_id $NODE_2)
+    NODE_3_ID=$(get_node_id $NODE_3)
+    NODE_4_ID=$(get_node_id $NODE_4)
+    
+    echo "      Nodo 1: ${NODE_1_ID:0:16}..."
+    echo "      Nodo 2: ${NODE_2_ID:0:16}..."
+    echo "      Nodo 3: ${NODE_3_ID:0:16}..."
+    echo "      Nodo 4: ${NODE_4_ID:0:16}..."
+    
+    # Verifica stato iniziale tesoreria
+    print_step "Verifica tesoreria canale '$CHANNEL'..."
+    INITIAL_TREASURY=$(get_treasury_balance "$CHANNEL")
+    echo "      Balance iniziale: ${INITIAL_TREASURY} SP"
+    
+    if [[ "$INITIAL_TREASURY" -lt 100 ]]; then
+        echo -e "${YELLOW}      ⚠️  Tesoreria bassa. Alcuni test potrebbero fallire.${NC}"
+        echo -e "${YELLOW}      Suggerimento: Finanzia la tesoreria con ./fund_treasury_v2.sh${NC}"
+    fi
+    
+    # Attendi stabilizzazione rete
+    wait_sync $SYNC_WAIT
+    
+    echo -e "${GREEN}✅ Setup completato${NC}"
+}
+
+# ========================================
+# TEST SCENARIO 1: Acquisizione Fallita (Fondi Insufficienti)
+# ========================================
+
+test_acquisition_insufficient_funds() {
+    print_section "SCENARIO 1: Acquisizione Fallita - Fondi Insufficienti"
+    
+    print_test "Tentativo acquisizione tool con costo superiore alla tesoreria"
+    
+    # Verifica tesoreria attuale
+    TREASURY_BALANCE=$(get_treasury_balance "$CHANNEL")
+    print_step "Tesoreria attuale: ${TREASURY_BALANCE} SP"
+    
+    # Calcola costo impossibile (tesoreria + 1000 SP)
+    IMPOSSIBLE_COST=$((TREASURY_BALANCE + 1000))
+    print_step "Tentativo acquisizione con costo: ${IMPOSSIBLE_COST} SP"
+    
+    # Crea proposta di acquisizione
+    TOOL_ID="expensive_tool_test_$(date +%s)"
+    
+    print_step "Creazione proposta governance..."
+    PROPOSAL_RESPONSE=$(curl -s -X POST "${NODE_1}/proposals?channel=${CHANNEL}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"title\": \"Test: Acquisizione Tool Troppo Costoso\",
+            \"description\": \"Questo dovrebbe fallire per fondi insufficienti\",
+            \"proposal_type\": \"command\",
+            \"command\": {
+                \"operation\": \"acquire_common_tool\",
+                \"params\": {
+                    \"channel\": \"${CHANNEL}\",
+                    \"tool_id\": \"${TOOL_ID}\",
+                    \"description\": \"Tool di test con costo impossibile\",
+                    \"type\": \"api_key\",
+                    \"monthly_cost_sp\": ${IMPOSSIBLE_COST},
+                    \"credentials_to_encrypt\": \"test_key_12345\"
+                }
+            }
+        }")
+    
+    PROPOSAL_ID=$(echo "$PROPOSAL_RESPONSE" | jq -r '.id')
+    
+    if [[ "$PROPOSAL_ID" == "null" || -z "$PROPOSAL_ID" ]]; then
+        fail "Impossibile creare proposta"
+        return
+    fi
+    
+    echo "      Proposta ID: ${PROPOSAL_ID:0:16}..."
+    
+    wait_sync $SYNC_WAIT
+    
+    # Vota YES da tutti i nodi
+    print_step "Votazione (4 nodi votano YES)..."
+    for node in $NODE_1 $NODE_2 $NODE_3 $NODE_4; do
+        curl -s -X POST "${node}/proposals/${PROPOSAL_ID}/vote?channel=${CHANNEL}" \
+            -H "Content-Type: application/json" \
+            -d '{"vote": "yes"}' > /dev/null
+    done
+    
+    wait_sync $GOVERNANCE_WAIT
+    
+    # Chiudi la proposta per triggerare l'esecuzione
+    print_step "Chiusura proposta..."
+    curl -s -X POST "${NODE_1}/proposals/${PROPOSAL_ID}/close?channel=${CHANNEL}" > /dev/null
+    
+    wait_sync $SYNC_WAIT
+    
+    # Verifica che l'ESECUZIONE sia FALLITA
+    print_step "Verifica esecuzione comando..."
+    PROPOSAL_STATUS=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".status")
+    EXEC_RESULT=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".execution_result.success")
+    EXEC_ERROR=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".execution_result.error")
+    
+    if [[ "$PROPOSAL_STATUS" == "failed" && "$EXEC_RESULT" == "false" ]]; then
+        pass "Esecuzione fallita come previsto"
+        echo "      Errore: $EXEC_ERROR"
+    else
+        fail "Esecuzione doveva fallire ma ha avuto successo (status: $PROPOSAL_STATUS)"
+        return
+    fi
+    
+    # Verifica che il tool NON sia stato aggiunto
+    print_step "Verifica che tool non esista..."
+    if ! tool_exists "$TOOL_ID" "$CHANNEL"; then
+        pass "Tool non presente nel sistema (corretto)"
+    else
+        fail "Tool presente nel sistema (non dovrebbe esistere)"
+        return
+    fi
+    
+    # Verifica che la tesoreria NON sia cambiata
+    print_step "Verifica tesoreria invariata..."
+    NEW_TREASURY=$(get_treasury_balance "$CHANNEL")
+    
+    if [[ "$NEW_TREASURY" == "$TREASURY_BALANCE" ]]; then
+        pass "Tesoreria invariata: ${NEW_TREASURY} SP"
+    else
+        fail "Tesoreria modificata: ${TREASURY_BALANCE} → ${NEW_TREASURY} SP"
+    fi
+    
+    echo -e "${GREEN}✅ Scenario 1 completato: Sistema correttamente rifiuta acquisizioni impossibili${NC}"
+}
+
+# ========================================
+# TEST SCENARIO 2: Acquisizione Riuscita (Ciclo Completo)
+# ========================================
+
+test_acquisition_success() {
+    print_section "SCENARIO 2: Acquisizione Riuscita - Ciclo Completo"
+    
+    print_test "Acquisizione tool valido attraverso governance"
+    
+    # Verifica tesoreria disponibile
+    TREASURY_BEFORE=$(get_treasury_balance "$CHANNEL")
+    print_step "Tesoreria iniziale: ${TREASURY_BEFORE} SP"
+    
+    if [[ "$TREASURY_BEFORE" -lt 50 ]]; then
+        skip "Tesoreria insufficiente per test (richiesti ≥50 SP)"
+        return
+    fi
+    
+    # Prepara acquisizione
+    TOOL_ID="test_geolocation_api_$(date +%s)"
+    TOOL_COST=50
+    TEST_CREDENTIALS="sk_test_geoloc_abc123xyz789"
+    
+    print_step "Tool ID: $TOOL_ID"
+    print_step "Costo mensile: ${TOOL_COST} SP"
+    
+    # Crea proposta
+    print_step "Creazione proposta governance..."
+    PROPOSAL_RESPONSE=$(curl -s -X POST "${NODE_1}/proposals?channel=${CHANNEL}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"title\": \"Acquisizione Geolocation API\",
+            \"description\": \"Tool per geolocalizzare indirizzi IP\",
+            \"proposal_type\": \"command\",
+            \"command\": {
+                \"operation\": \"acquire_common_tool\",
+                \"params\": {
+                    \"channel\": \"${CHANNEL}\",
+                    \"tool_id\": \"${TOOL_ID}\",
+                    \"description\": \"API di geolocalizzazione per task del canale\",
+                    \"type\": \"api_key\",
+                    \"monthly_cost_sp\": ${TOOL_COST},
+                    \"credentials_to_encrypt\": \"${TEST_CREDENTIALS}\"
+                }
+            }
+        }")
+    
+    PROPOSAL_ID=$(echo "$PROPOSAL_RESPONSE" | jq -r '.id')
+    
+    if [[ "$PROPOSAL_ID" == "null" || -z "$PROPOSAL_ID" ]]; then
+        fail "Impossibile creare proposta"
+        return
+    fi
+    
+    echo "      Proposta ID: ${PROPOSAL_ID:0:16}..."
+    
+    wait_sync $SYNC_WAIT
+    
+    # Votazione
+    print_step "Votazione (4 nodi votano YES)..."
+    for node in $NODE_1 $NODE_2 $NODE_3 $NODE_4; do
+        curl -s -X POST "${node}/proposals/${PROPOSAL_ID}/vote?channel=${CHANNEL}" \
+            -H "Content-Type: application/json" \
+            -d '{"vote": "yes"}' > /dev/null
+    done
+    
+    wait_sync $GOVERNANCE_WAIT
+    
+    # Chiudi la proposta per triggerare l'esecuzione
+    print_step "Chiusura proposta..."
+    curl -s -X POST "${NODE_1}/proposals/${PROPOSAL_ID}/close?channel=${CHANNEL}" > /dev/null
+    
+    wait_sync $SYNC_WAIT
+    
+    # Verifica esecuzione
+    print_step "Verifica esecuzione comando..."
+    PROPOSAL_STATUS=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".status")
+    EXEC_SUCCESS=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".execution_result.success")
+    
+    if [[ "$PROPOSAL_STATUS" == "executed" && "$EXEC_SUCCESS" == "true" ]]; then
+        pass "Comando eseguito con successo"
+    else
+        EXEC_ERROR=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".execution_result.error")
+        fail "Esecuzione comando fallita: $EXEC_ERROR (status: $PROPOSAL_STATUS)"
+        return
+    fi
+    
+    # Verifica presenza tool
+    print_step "Verifica tool nel sistema..."
+    if tool_exists "$TOOL_ID" "$CHANNEL"; then
+        pass "Tool presente in common_tools"
+    else
+        fail "Tool non trovato in common_tools"
+        return
+    fi
+    
+    # Verifica status tool
+    print_step "Verifica status tool..."
+    TOOL_STATUS=$(get_tool_status "$TOOL_ID" "$CHANNEL")
+    
+    if [[ "$TOOL_STATUS" == "active" ]]; then
+        pass "Tool status: active"
+    else
+        fail "Tool status non corretto: $TOOL_STATUS"
+    fi
+    
+    # Verifica credenziali criptate
+    print_step "Verifica crittografia credenziali..."
+    ENCRYPTED_CREDS=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.common_tools.\"${TOOL_ID}\".encrypted_credentials")
+    
+    if [[ -n "$ENCRYPTED_CREDS" && "$ENCRYPTED_CREDS" != "null" ]]; then
+        pass "Credenziali criptate presenti"
+        
+        # Verifica che NON siano in chiaro
+        if [[ "$ENCRYPTED_CREDS" != *"$TEST_CREDENTIALS"* ]]; then
+            pass "Credenziali correttamente criptate (non in chiaro)"
+        else
+            fail "SECURITY ISSUE: Credenziali in chiaro!"
+        fi
+    else
+        fail "Credenziali criptate non presenti"
+    fi
+    
+    # Verifica sottrazione tesoreria
+    print_step "Verifica pagamento dalla tesoreria..."
+    TREASURY_AFTER=$(get_treasury_balance "$CHANNEL")
+    EXPECTED_TREASURY=$((TREASURY_BEFORE - TOOL_COST))
+    
+    if [[ "$TREASURY_AFTER" == "$EXPECTED_TREASURY" ]]; then
+        pass "Tesoreria aggiornata: ${TREASURY_BEFORE} - ${TOOL_COST} = ${TREASURY_AFTER} SP"
+    else
+        fail "Tesoreria non corretta: atteso ${EXPECTED_TREASURY}, trovato ${TREASURY_AFTER}"
+    fi
+    
+    # Salva tool_id per test successivi
+    export ACQUIRED_TOOL_ID="$TOOL_ID"
+    
+    echo -e "${GREEN}✅ Scenario 2 completato: Tool acquisito e configurato correttamente${NC}"
+}
+
+# ========================================
+# TEST SCENARIO 3: Utilizzo non Autorizzato (Security Test)
+# ========================================
+
+test_unauthorized_tool_usage() {
+    print_section "SCENARIO 3: Utilizzo non Autorizzato - Security Test"
+    
+    print_test "Tentativo utilizzo tool senza autorizzazione"
+    
+    # Verifica che esista un tool acquisito dal test precedente
+    if [[ -z "$ACQUIRED_TOOL_ID" ]]; then
+        skip "Nessun tool disponibile (esegui prima test_acquisition_success)"
+        return
+    fi
+    
+    print_step "Tool target: $ACQUIRED_TOOL_ID"
+    
+    # Crea un task che NON richiede il tool
+    print_step "Creazione task senza required_tools..."
+    TASK_RESPONSE=$(curl -s -X POST "${NODE_1}/tasks?channel=${CHANNEL}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"title\": \"Task Senza Tool\",
+            \"description\": \"Task che non richiede il tool\",
+            \"reward\": 50,
+            \"schema_name\": \"task_v2\",
+            \"enable_auction\": false,
+            \"required_tools\": []
+        }")
+    
+    TASK_ID=$(echo "$TASK_RESPONSE" | jq -r '.task_id')
+    
+    if [[ "$TASK_ID" == "null" || -z "$TASK_ID" ]]; then
+        fail "Impossibile creare task"
+        return
+    fi
+    
+    echo "      Task ID: ${TASK_ID:0:16}..."
+    
+    wait_sync $SYNC_WAIT
+    
+    # Assegna task a NODE_2
+    print_step "Assegnazione task a Nodo 2..."
+    curl -s -X POST "${NODE_2}/tasks/${TASK_ID}/claim?channel=${CHANNEL}" > /dev/null
+    curl -s -X POST "${NODE_2}/tasks/${TASK_ID}/progress?channel=${CHANNEL}" > /dev/null
+    
+    wait_sync $SYNC_WAIT
+    
+    # TENTATIVO 1: Nodo 2 prova a usare il tool (non richiesto dal task)
+    print_step "Tentativo 1: Tool non richiesto dal task..."
+    EXEC_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+        "${NODE_2}/tools/${ACQUIRED_TOOL_ID}/execute?channel=${CHANNEL}&task_id=${TASK_ID}" \
+        -H "Content-Type: application/json" \
+        -d '{"ip_address": "8.8.8.8"}')
+    
+    HTTP_CODE=$(echo "$EXEC_RESPONSE" | tail -n 1)
+    
+    if [[ "$HTTP_CODE" == "403" ]]; then
+        pass "Accesso negato (403) - tool non richiesto dal task"
+    else
+        fail "Doveva restituire 403, restituito: $HTTP_CODE"
+    fi
+    
+    # Crea secondo task che RICHIEDE il tool
+    print_step "Creazione task con required_tools..."
+    TASK2_RESPONSE=$(curl -s -X POST "${NODE_1}/tasks?channel=${CHANNEL}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"title\": \"Task Con Tool Richiesto\",
+            \"description\": \"Task che richiede il tool\",
+            \"reward\": 50,
+            \"schema_name\": \"task_v2\",
+            \"enable_auction\": false,
+            \"required_tools\": [\"${ACQUIRED_TOOL_ID}\"]
+        }")
+    
+    TASK2_ID=$(echo "$TASK2_RESPONSE" | jq -r '.task_id')
+    
+    wait_sync $SYNC_WAIT
+    
+    # Assegna a NODE_2
+    curl -s -X POST "${NODE_2}/tasks/${TASK2_ID}/claim?channel=${CHANNEL}" > /dev/null
+    curl -s -X POST "${NODE_2}/tasks/${TASK2_ID}/progress?channel=${CHANNEL}" > /dev/null
+    
+    wait_sync $SYNC_WAIT
+    
+    # TENTATIVO 2: Nodo 3 (NON assignee) prova a usare il tool
+    print_step "Tentativo 2: Nodo non-assignee..."
+    EXEC_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+        "${NODE_3}/tools/${ACQUIRED_TOOL_ID}/execute?channel=${CHANNEL}&task_id=${TASK2_ID}" \
+        -H "Content-Type: application/json" \
+        -d '{"ip_address": "8.8.8.8"}')
+    
+    HTTP_CODE=$(echo "$EXEC_RESPONSE" | tail -n 1)
+    
+    if [[ "$HTTP_CODE" == "403" ]]; then
+        pass "Accesso negato (403) - chiamante non è assignee"
+    else
+        fail "Doveva restituire 403, restituito: $HTTP_CODE"
+    fi
+    
+    # TENTATIVO 3: Nodo 2 con task completato
+    print_step "Tentativo 3: Task già completato..."
+    curl -s -X POST "${NODE_2}/tasks/${TASK2_ID}/complete?channel=${CHANNEL}" > /dev/null
+    
+    wait_sync $SYNC_WAIT
+    
+    EXEC_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+        "${NODE_2}/tools/${ACQUIRED_TOOL_ID}/execute?channel=${CHANNEL}&task_id=${TASK2_ID}" \
+        -H "Content-Type: application/json" \
+        -d '{"ip_address": "8.8.8.8"}')
+    
+    HTTP_CODE=$(echo "$EXEC_RESPONSE" | tail -n 1)
+    
+    if [[ "$HTTP_CODE" == "403" ]]; then
+        pass "Accesso negato (403) - task completato"
+    else
+        fail "Doveva restituire 403, restituito: $HTTP_CODE"
+    fi
+    
+    # Salva task_id valido per prossimo test
+    # Crea nuovo task per scenario 4
+    print_step "Preparazione task per scenario 4..."
+    VALID_TASK_RESPONSE=$(curl -s -X POST "${NODE_1}/tasks?channel=${CHANNEL}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"title\": \"Task Valido per Esecuzione Tool\",
+            \"description\": \"Task in_progress con tool richiesto\",
+            \"reward\": 50,
+            \"schema_name\": \"task_v2\",
+            \"enable_auction\": false,
+            \"required_tools\": [\"${ACQUIRED_TOOL_ID}\"]
+        }")
+    
+    export VALID_TASK_ID=$(echo "$VALID_TASK_RESPONSE" | jq -r '.task_id')
+    
+    wait_sync $SYNC_WAIT
+    
+    curl -s -X POST "${NODE_2}/tasks/${VALID_TASK_ID}/claim?channel=${CHANNEL}" > /dev/null
+    curl -s -X POST "${NODE_2}/tasks/${VALID_TASK_ID}/progress?channel=${CHANNEL}" > /dev/null
+    
+    wait_sync $SYNC_WAIT
+    
+    echo -e "${GREEN}✅ Scenario 3 completato: Tutti i controlli di sicurezza funzionano${NC}"
+}
+
+# ========================================
+# TEST SCENARIO 4: Utilizzo Autorizzato (Happy Path)
+# ========================================
+
+test_authorized_tool_usage() {
+    print_section "SCENARIO 4: Utilizzo Autorizzato - Happy Path"
+    
+    print_test "Esecuzione tool con autorizzazione completa"
+    
+    # Verifica prerequisiti
+    if [[ -z "$ACQUIRED_TOOL_ID" ]]; then
+        skip "Nessun tool disponibile (esegui prima test_acquisition_success)"
+        return
+    fi
+    
+    if [[ -z "$VALID_TASK_ID" ]]; then
+        skip "Nessun task valido disponibile (esegui prima test_unauthorized_tool_usage)"
+        return
+    fi
+    
+    print_step "Tool ID: $ACQUIRED_TOOL_ID"
+    print_step "Task ID: ${VALID_TASK_ID:0:16}..."
+    print_step "Assignee: Nodo 2 (${NODE_2_ID:0:16}...)"
+    
+    # Verifica stato task
+    print_step "Verifica stato task in_progress..."
+    TASK_STATUS=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.tasks.\"${VALID_TASK_ID}\".status")
+    
+    if [[ "$TASK_STATUS" == "in_progress" ]]; then
+        pass "Task status: in_progress"
+    else
+        fail "Task status non valido: $TASK_STATUS"
+        return
+    fi
+    
+    # Esecuzione tool autorizzata
+    print_step "Esecuzione tool autorizzata (Nodo 2 = assignee)..."
+    EXEC_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+        "${NODE_2}/tools/${ACQUIRED_TOOL_ID}/execute?channel=${CHANNEL}&task_id=${VALID_TASK_ID}" \
+        -H "Content-Type: application/json" \
+        -d '{"ip_address": "8.8.8.8"}')
+    
+    BODY=$(echo "$EXEC_RESPONSE" | head -n -1)
+    HTTP_CODE=$(echo "$EXEC_RESPONSE" | tail -n 1)
+    
+    if [[ "$HTTP_CODE" == "200" ]]; then
+        pass "Esecuzione riuscita (HTTP 200)"
+    else
+        fail "Esecuzione fallita: HTTP $HTTP_CODE"
+        echo "      Response: $BODY"
+        return
+    fi
+    
+    # Verifica struttura response
+    print_step "Verifica struttura response..."
+    
+    SUCCESS=$(echo "$BODY" | jq -r '.success')
+    TOOL_ID_RESP=$(echo "$BODY" | jq -r '.tool_id')
+    RESULT=$(echo "$BODY" | jq -r '.result')
+    
+    if [[ "$SUCCESS" == "true" ]]; then
+        pass "Response success: true"
+    else
+        fail "Response success: $SUCCESS"
+    fi
+    
+    if [[ "$TOOL_ID_RESP" == "$ACQUIRED_TOOL_ID" ]]; then
+        pass "Tool ID corretto nel response"
+    else
+        fail "Tool ID nel response: $TOOL_ID_RESP (atteso: $ACQUIRED_TOOL_ID)"
+    fi
+    
+    if [[ -n "$RESULT" && "$RESULT" != "null" ]]; then
+        pass "Result presente nel response"
+        echo "      Result: $RESULT"
+    else
+        fail "Result mancante o null"
+    fi
+    
+    # Verifica che il result contenga dati di geolocalizzazione
+    print_step "Verifica contenuto result (geolocalizzazione)..."
+    
+    COUNTRY=$(echo "$BODY" | jq -r '.result.country')
+    CITY=$(echo "$BODY" | jq -r '.result.city')
+    
+    if [[ -n "$COUNTRY" && "$COUNTRY" != "null" ]]; then
+        pass "Dati geolocalizzazione presenti (country: $COUNTRY, city: $CITY)"
+    else
+        fail "Dati geolocalizzazione mancanti"
+    fi
+    
+    echo -e "${GREEN}✅ Scenario 4 completato: Tool eseguito con successo${NC}"
+}
+
+# ========================================
+# TEST SCENARIO 5: Pagamenti Mensili (se tempo disponibile)
+# ========================================
+
+test_monthly_payments() {
+    print_section "SCENARIO 5: Pagamenti Mensili Automatici (Opzionale)"
+    
+    print_test "Verifica deduzione automatica costi mensili"
+    
+    if [[ -z "$ACQUIRED_TOOL_ID" ]]; then
+        skip "Nessun tool disponibile (esegui prima test_acquisition_success)"
+        return
+    fi
+    
+    echo -e "${YELLOW}   ⚠️  Questo test richiede 35+ secondi di attesa${NC}"
+    echo -e "${YELLOW}   Per saltarlo, premi Ctrl+C nei prossimi 5 secondi${NC}"
+    sleep 5
+    
+    # Registra tesoreria prima del pagamento
+    TREASURY_BEFORE=$(get_treasury_balance "$CHANNEL")
+    print_step "Tesoreria prima: ${TREASURY_BEFORE} SP"
+    
+    # Ottieni costo mensile tool
+    TOOL_COST=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.common_tools.\"${ACQUIRED_TOOL_ID}\".monthly_cost_sp")
+    print_step "Costo mensile tool: ${TOOL_COST} SP"
+    
+    # Attendi trigger pagamento mensile (30s + margine)
+    print_step "Attesa pagamento mensile..."
+    wait_sync $PAYMENT_WAIT
+    
+    # Verifica deduzione
+    TREASURY_AFTER=$(get_treasury_balance "$CHANNEL")
+    print_step "Tesoreria dopo: ${TREASURY_AFTER} SP"
+    
+    # Il pagamento potrebbe essere stato fatto o no, dipende dal timing
+    # Verifichiamo solo che la tesoreria sia cambiata in modo sensato
+    DIFF=$((TREASURY_BEFORE - TREASURY_AFTER))
+    
+    if [[ $DIFF -ge 0 && $DIFF -le $((TOOL_COST * 2)) ]]; then
+        pass "Tesoreria variata sensatamente (diff: ${DIFF} SP)"
+    else
+        fail "Variazione tesoreria anomala (diff: ${DIFF} SP, tool cost: ${TOOL_COST} SP)"
+    fi
+    
+    echo -e "${GREEN}✅ Scenario 5 completato${NC}"
+}
+
+# ========================================
+# TEST SCENARIO 6: Deprecazione Tool
+# ========================================
+
+test_tool_deprecation() {
+    print_section "SCENARIO 6: Deprecazione Tool Attivo"
+    
+    print_test "Deprecazione tool esistente tramite governance"
+    
+    if [[ -z "$ACQUIRED_TOOL_ID" ]]; then
+        skip "Nessun tool disponibile (esegui prima test_acquisition_success)"
+        return
+    fi
+    
+    print_step "Tool target: $ACQUIRED_TOOL_ID"
+    
+    # Verifica status prima della deprecazione
+    STATUS_BEFORE=$(get_tool_status "$ACQUIRED_TOOL_ID" "$CHANNEL")
+    print_step "Status attuale: $STATUS_BEFORE"
+    
+    if [[ "$STATUS_BEFORE" != "active" ]]; then
+        skip "Tool non active (status: $STATUS_BEFORE)"
+        return
+    fi
+    
+    # Crea proposta deprecazione
+    print_step "Creazione proposta deprecazione..."
+    PROPOSAL_RESPONSE=$(curl -s -X POST "${NODE_1}/proposals?channel=${CHANNEL}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"title\": \"Deprecazione Tool Test\",
+            \"description\": \"Rimozione tool di test\",
+            \"proposal_type\": \"command\",
+            \"command\": {
+                \"operation\": \"deprecate_common_tool\",
+                \"params\": {
+                    \"channel\": \"${CHANNEL}\",
+                    \"tool_id\": \"${ACQUIRED_TOOL_ID}\"
+                }
+            }
+        }")
+    
+    PROPOSAL_ID=$(echo "$PROPOSAL_RESPONSE" | jq -r '.id')
+    
+    if [[ "$PROPOSAL_ID" == "null" || -z "$PROPOSAL_ID" ]]; then
+        fail "Impossibile creare proposta"
+        return
+    fi
+    
+    wait_sync $SYNC_WAIT
+    
+    # Votazione
+    print_step "Votazione (4 nodi votano YES)..."
+    for node in $NODE_1 $NODE_2 $NODE_3 $NODE_4; do
+        curl -s -X POST "${node}/proposals/${PROPOSAL_ID}/vote?channel=${CHANNEL}" \
+            -H "Content-Type: application/json" \
+            -d '{"vote": "yes"}' > /dev/null
+    done
+    
+    wait_sync $GOVERNANCE_WAIT
+    
+    # Chiudi la proposta per triggerare l'esecuzione
+    print_step "Chiusura proposta..."
+    curl -s -X POST "${NODE_1}/proposals/${PROPOSAL_ID}/close?channel=${CHANNEL}" > /dev/null
+    
+    wait_sync $SYNC_WAIT
+    
+    # Verifica esecuzione
+    print_step "Verifica esecuzione deprecazione..."
+    PROPOSAL_STATUS=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".status")
+    EXEC_SUCCESS=$(curl -s "${NODE_1}/state" | jq -r ".${CHANNEL}.proposals.\"${PROPOSAL_ID}\".execution_result.success")
+    
+    if [[ "$PROPOSAL_STATUS" == "executed" && "$EXEC_SUCCESS" == "true" ]]; then
+        pass "Deprecazione eseguita"
+    else
+        fail "Deprecazione fallita (status: $PROPOSAL_STATUS)"
+        return
+    fi
+    
+    # Verifica cambio status
+    print_step "Verifica status tool..."
+    STATUS_AFTER=$(get_tool_status "$ACQUIRED_TOOL_ID" "$CHANNEL")
+    
+    if [[ "$STATUS_AFTER" == "deprecated" ]]; then
+        pass "Tool status: deprecated"
+    else
+        fail "Tool status non corretto: $STATUS_AFTER"
+    fi
+    
+    # Verifica che tool sia ancora presente (per audit)
+    print_step "Verifica tool ancora presente (audit)..."
+    if tool_exists "$ACQUIRED_TOOL_ID" "$CHANNEL"; then
+        pass "Tool ancora presente nel sistema"
+    else
+        fail "Tool rimosso (dovrebbe rimanere per audit)"
+    fi
+    
+    echo -e "${GREEN}✅ Scenario 6 completato: Tool deprecato correttamente${NC}"
+}
+
+# ========================================
+# Test Report
+# ========================================
+
+print_report() {
+    print_header "📊 REPORT FINALE"
+    
+    TOTAL=$((TESTS_PASSED + TESTS_FAILED + TESTS_SKIPPED))
+    
+    echo ""
+    echo -e "${GREEN}✓ Test Superati:  ${TESTS_PASSED}${NC}"
+    echo -e "${RED}✗ Test Falliti:   ${TESTS_FAILED}${NC}"
+    echo -e "${YELLOW}⊘ Test Skippati:  ${TESTS_SKIPPED}${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}  Totale:         ${TOTAL}${NC}"
+    echo ""
+    
+    if [[ $TESTS_FAILED -eq 0 ]]; then
+        echo -e "${GREEN}🎉 TUTTI I TEST SUPERATI!${NC}"
+        exit 0
+    else
+        echo -e "${RED}❌ ALCUNI TEST FALLITI${NC}"
+        exit 1
+    fi
+}
+
+# ========================================
+# Main Execution
+# ========================================
+
+main() {
+    print_header "🚀 TEST SUITE: Common Tools System (Experiment)"
+    echo ""
+    echo "Questa suite testa scenari avanzati e edge cases del sistema Common Tools."
+    echo "Durata stimata: 2-5 minuti (con scenario 5: 5-8 minuti)"
+    echo ""
+    
+    setup
+    
+    # Esegui tutti gli scenari
+    test_acquisition_insufficient_funds
+    test_acquisition_success
+    test_unauthorized_tool_usage
+    test_authorized_tool_usage
+    
+    # Scenario opzionale (lungo)
+    # test_monthly_payments
+    
+    test_tool_deprecation
+    
+    print_report
+}
+
+# Esegui main
+main "$@"

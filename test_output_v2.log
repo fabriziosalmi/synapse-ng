@@ -1,0 +1,45 @@
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  🚀 TEST SUITE: Common Tools System (Experiment)[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+Questa suite testa scenari avanzati e edge cases del sistema Common Tools.
+Durata stimata: 2-5 minuti (con scenario 5: 5-8 minuti)
+
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  🔧 SETUP: Preparazione ambiente test[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+   [0;35m➜ Verifica connettività nodi...[0m
+[0;32m      ✓ http://localhost:8001 OK[0m
+[0;32m      ✓ http://localhost:8002 OK[0m
+[0;32m      ✓ http://localhost:8003 OK[0m
+[0;32m      ✓ http://localhost:8004 OK[0m
+   [0;35m➜ Identificazione nodi...[0m
+      Nodo 1: JkN-5D2qxGet881U...
+      Nodo 2: OmHIcFIjwHYas_Fv...
+      Nodo 3: U8ttU5tMbo9pwAfM...
+      Nodo 4: pOWUgtbt_wu-VwKL...
+   [0;35m➜ Verifica tesoreria canale 'sviluppo_ui'...[0m
+      Balance iniziale: 0 SP
+[1;33m      ⚠️  Tesoreria bassa. Alcuni test potrebbero fallire.[0m
+[1;33m      Suggerimento: Finanzia la tesoreria con ./fund_treasury_v2.sh[0m
+[0;34m   ⏳ Attendo sincronizzazione (5s)...[0m
+[0;32m✅ Setup completato[0m
+
+[0;36m╔════════════════════════════════════════════════════════════════╗[0m
+[0;36m║  SCENARIO 1: Acquisizione Fallita - Fondi Insufficienti[0m
+[0;36m╚════════════════════════════════════════════════════════════════╝[0m
+
+[1;33m🧪 TEST: Tentativo acquisizione tool con costo superiore alla tesoreria[0m
+   [0;35m➜ Tesoreria attuale: 0 SP[0m
+   [0;35m➜ Tentativo acquisizione con costo: 1000 SP[0m
+   [0;35m➜ Creazione proposta governance...[0m
+      Proposta ID: 5026de12-2664-41...
+[0;34m   ⏳ Attendo sincronizzazione (5s)...[0m
+   [0;35m➜ Votazione (4 nodi votano YES)...[0m
+[0;34m   ⏳ Attendo sincronizzazione (10s)...[0m
+   [0;35m➜ Chiusura proposta...[0m
+[0;34m   ⏳ Attendo sincronizzazione (5s)...[0m
+   [0;35m➜ Verifica esecuzione comando...[0m
+[0;32m   ✓ PASS: Esecuzione fallita come previsto[0m
