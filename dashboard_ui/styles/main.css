@@ -1,0 +1,356 @@
+/* main.css - Core styles and biotech aesthetic */
+
+:root {
+    /* Biotech Color Palette */
+    --primary-bg: #0a0e14;
+    --secondary-bg: #131820;
+    --panel-bg: #1a1f28;
+    --card-bg: #1f2530;
+    
+    /* Status Colors (Traffic Light System) */
+    --status-healthy: #00ff88;
+    --status-warning: #ffaa00;
+    --status-critical: #ff4444;
+    --status-unknown: #666;
+    
+    /* Accent Colors */
+    --accent-cyan: #00d4ff;
+    --accent-purple: #b866ff;
+    --accent-pink: #ff66d9;
+    
+    /* Text Colors */
+    --text-primary: #e8eef7;
+    --text-secondary: #8a9bb5;
+    --text-muted: #5a6b82;
+    
+    /* EEG/Monitor Colors */
+    --eeg-line: #00ff88;
+    --grid-line: rgba(136, 160, 181, 0.1);
+    
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    
+    /* Border Radius */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    
+    /* Shadows */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+    
+    /* Glow Effects */
+    --glow-healthy: 0 0 20px rgba(0, 255, 136, 0.3);
+    --glow-warning: 0 0 20px rgba(255, 170, 0, 0.3);
+    --glow-critical: 0 0 20px rgba(255, 68, 68, 0.3);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    background: var(--primary-bg);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* Animated Background Grid (EEG aesthetic) */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 50px 50px;
+    z-index: -1;
+    opacity: 0.3;
+    animation: gridScroll 20s linear infinite;
+}
+
+@keyframes gridScroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(50px); }
+}
+
+/* Header */
+.organism-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-lg);
+    background: var(--secondary-bg);
+    border-bottom: 2px solid var(--accent-cyan);
+    box-shadow: var(--shadow-md);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.organism-logo {
+    font-size: 48px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.header-info h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--status-unknown);
+    animation: blink 2s ease-in-out infinite;
+}
+
+.status-indicator.connected {
+    background: var(--status-healthy);
+    box-shadow: var(--glow-healthy);
+}
+
+.status-indicator.disconnected {
+    background: var(--status-critical);
+    box-shadow: var(--glow-critical);
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--spacing-sm);
+}
+
+.config-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.config-controls label {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.config-controls input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-cyan);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+    min-width: 200px;
+}
+
+.config-controls input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3);
+}
+
+.last-update {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Buttons */
+.btn-primary {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.4);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-secondary {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+    border: 1px solid var(--accent-cyan);
+    border-radius: var(--radius-sm);
+    color: var(--accent-cyan);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background: var(--accent-cyan);
+    color: var(--primary-bg);
+}
+
+/* Main Grid */
+.consciousness-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    max-width: 2400px;
+    margin: 0 auto;
+}
+
+@media (max-width: 1600px) {
+    .consciousness-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Panel Base Styles */
+.panel {
+    background: var(--secondary-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    border: 1px solid rgba(136, 160, 181, 0.2);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.panel:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
+}
+
+.panel-header {
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(184, 102, 255, 0.1));
+    border-bottom: 2px solid var(--accent-cyan);
+}
+
+.panel-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+
+.panel-subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.panel-content {
+    padding: var(--spacing-lg);
+}
+
+/* Section Titles */
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--grid-line);
+    color: var(--accent-cyan);
+}
+
+/* Empty State */
+.empty-state {
+    padding: var(--spacing-xl);
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    background: var(--panel-bg);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--grid-line);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--panel-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--accent-cyan);
+    border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-purple);
+}
+
+/* Loading Animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--panel-bg);
+    border-top: 3px solid var(--accent-cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Utility Classes */
+.text-healthy { color: var(--status-healthy); }
+.text-warning { color: var(--status-warning); }
+.text-critical { color: var(--status-critical); }
+
+.bg-healthy { background: var(--status-healthy); }
+.bg-warning { background: var(--status-warning); }
+.bg-critical { background: var(--status-critical); }
+
+.glow-healthy { box-shadow: var(--glow-healthy); }
+.glow-warning { box-shadow: var(--glow-warning); }
+.glow-critical { box-shadow: var(--glow-critical); }

@@ -1,0 +1,665 @@
+/* panels.css - Panel-specific styles for the three consciousness systems */
+
+/* ============================================================================
+   PANEL 1: HOMEOSTATIC SYSTEM (Physical Health)
+   ============================================================================ */
+
+.homeostatic-panel .panel-header {
+    background: linear-gradient(135deg, rgba(255, 68, 68, 0.1), rgba(255, 136, 0, 0.1));
+    border-bottom: 2px solid #ff4444;
+}
+
+/* Vital Signs Grid */
+.vital-signs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.vital-card {
+    background: var(--panel-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    border: 2px solid transparent;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.vital-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--status-unknown);
+    transition: background 0.3s;
+}
+
+.vital-card.status-healthy::before { background: var(--status-healthy); }
+.vital-card.status-warning::before { background: var(--status-warning); }
+.vital-card.status-critical::before { background: var(--status-critical); }
+
+.vital-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.vital-card.status-healthy:hover { border-color: var(--status-healthy); }
+.vital-card.status-warning:hover { border-color: var(--status-warning); }
+.vital-card.status-critical:hover { border-color: var(--status-critical); }
+
+.vital-icon {
+    font-size: 32px;
+    margin-bottom: var(--spacing-sm);
+    filter: grayscale(50%);
+    transition: filter 0.3s;
+}
+
+.vital-card.status-healthy .vital-icon { filter: grayscale(0%); }
+
+.vital-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.vital-value {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.vital-target {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.vital-status {
+    position: absolute;
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--status-unknown);
+}
+
+.vital-card.status-healthy .vital-status { background: var(--status-healthy); box-shadow: var(--glow-healthy); }
+.vital-card.status-warning .vital-status { background: var(--status-warning); box-shadow: var(--glow-warning); }
+.vital-card.status-critical .vital-status { background: var(--status-critical); box-shadow: var(--glow-critical); }
+
+/* Diagnoses Section */
+.diagnoses-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.diagnoses-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.diagnosis-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    border-left: 4px solid var(--status-unknown);
+    transition: all 0.3s;
+}
+
+.diagnosis-card.severity-low { border-left-color: var(--status-healthy); }
+.diagnosis-card.severity-medium { border-left-color: var(--status-warning); }
+.diagnosis-card.severity-high { border-left-color: var(--status-critical); }
+.diagnosis-card.severity-critical { border-left-color: #ff0000; }
+
+.diagnosis-card:hover {
+    transform: translateX(4px);
+    box-shadow: var(--shadow-md);
+}
+
+.diagnosis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.diagnosis-type {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.diagnosis-severity {
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.diagnosis-severity.severity-low {
+    background: rgba(0, 255, 136, 0.2);
+    color: var(--status-healthy);
+}
+
+.diagnosis-severity.severity-medium {
+    background: rgba(255, 170, 0, 0.2);
+    color: var(--status-warning);
+}
+
+.diagnosis-severity.severity-high {
+    background: rgba(255, 68, 68, 0.2);
+    color: var(--status-critical);
+}
+
+.diagnosis-severity.severity-critical {
+    background: rgba(255, 0, 0, 0.3);
+    color: #ff6666;
+}
+
+.diagnosis-description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+    line-height: 1.5;
+}
+
+.diagnosis-metrics {
+    display: flex;
+    gap: var(--spacing-md);
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-sm);
+}
+
+.diagnosis-metric {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.diagnosis-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    background: var(--panel-bg);
+}
+
+.diagnosis-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    animation: blink 2s ease-in-out infinite;
+}
+
+/* Immune Proposals */
+.immune-proposals-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.immune-proposals-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.immune-proposal-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    border: 2px solid rgba(0, 255, 136, 0.3);
+    transition: all 0.3s;
+}
+
+.immune-proposal-card:hover {
+    border-color: var(--status-healthy);
+    box-shadow: var(--glow-healthy);
+}
+
+.immune-proposal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.immune-proposal-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--status-healthy);
+}
+
+.immune-proposal-badge {
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(0, 255, 136, 0.2);
+    color: var(--status-healthy);
+}
+
+.immune-proposal-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.immune-proposal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ============================================================================
+   PANEL 2: NERVOUS SYSTEM (Decision Making)
+   ============================================================================ */
+
+.nervous-panel .panel-header {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(184, 102, 255, 0.1));
+    border-bottom: 2px solid var(--accent-cyan);
+}
+
+/* Governance Kanban */
+.governance-kanban {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+    overflow-x: auto;
+}
+
+@media (max-width: 1200px) {
+    .governance-kanban {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.kanban-column {
+    background: var(--panel-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    min-height: 400px;
+}
+
+.kanban-header {
+    padding: var(--spacing-md);
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid;
+}
+
+.kanban-header h4 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.kanban-header .count {
+    background: var(--secondary-bg);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.kanban-open { border-bottom-color: var(--accent-cyan); background: rgba(0, 212, 255, 0.1); }
+.kanban-voting { border-bottom-color: var(--accent-purple); background: rgba(184, 102, 255, 0.1); }
+.kanban-ratifying { border-bottom-color: var(--status-warning); background: rgba(255, 170, 0, 0.1); }
+.kanban-closed { border-bottom-color: var(--status-healthy); background: rgba(0, 255, 136, 0.1); }
+
+.kanban-cards {
+    padding: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.proposal-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-md);
+    cursor: pointer;
+    transition: all 0.3s;
+    border-left: 3px solid transparent;
+}
+
+.proposal-card:hover {
+    transform: translateX(4px);
+    box-shadow: var(--shadow-md);
+    border-left-color: var(--accent-cyan);
+}
+
+.proposal-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-xs);
+}
+
+.proposal-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.proposal-card-type {
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: var(--panel-bg);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    margin-left: var(--spacing-xs);
+}
+
+.proposal-card-type.type-config { background: rgba(0, 212, 255, 0.2); color: var(--accent-cyan); }
+.proposal-card-type.type-code_upgrade { background: rgba(184, 102, 255, 0.2); color: var(--accent-purple); }
+.proposal-card-type.type-treasury { background: rgba(255, 170, 0, 0.2); color: var(--status-warning); }
+
+.proposal-card-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-xs);
+}
+
+.proposal-card-votes {
+    display: flex;
+    gap: var(--spacing-sm);
+    font-size: 11px;
+}
+
+.vote-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--panel-bg);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.vote-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+    transition: width 0.3s;
+}
+
+.proposal-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: var(--spacing-xs);
+}
+
+.proposal-tag {
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    background: var(--panel-bg);
+    color: var(--text-secondary);
+}
+
+/* Treasury Section */
+.treasury-section {
+    margin-top: var(--spacing-xl);
+}
+
+.treasury-channels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.treasury-channel {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    border-top: 3px solid var(--status-warning);
+}
+
+.treasury-channel-name {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.treasury-channel-balance {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--status-warning);
+    font-variant-numeric: tabular-nums;
+}
+
+.treasury-channel-label {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ============================================================================
+   PANEL 3: EVOLUTIONARY GENOME (Long-term Thinking)
+   ============================================================================ */
+
+.genome-panel .panel-header {
+    background: linear-gradient(135deg, rgba(184, 102, 255, 0.1), rgba(255, 102, 217, 0.1));
+    border-bottom: 2px solid var(--accent-purple);
+}
+
+/* Evolutionary Timeline */
+.evolution-timeline-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.timeline-container {
+    position: relative;
+    padding-left: var(--spacing-lg);
+}
+
+.timeline-container::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--accent-purple), var(--accent-pink));
+}
+
+.timeline-event {
+    position: relative;
+    margin-bottom: var(--spacing-lg);
+    padding-left: var(--spacing-lg);
+}
+
+.timeline-event::before {
+    content: '';
+    position: absolute;
+    left: -27px;
+    top: 8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-purple);
+    border: 3px solid var(--secondary-bg);
+    box-shadow: 0 0 12px var(--accent-purple);
+}
+
+.timeline-event.event-approved::before { background: var(--status-healthy); }
+.timeline-event.event-rejected::before { background: var(--status-critical); }
+.timeline-event.event-pending::before { 
+    background: var(--status-warning); 
+    animation: blink 2s ease-in-out infinite;
+}
+
+.timeline-event-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    border: 1px solid rgba(184, 102, 255, 0.3);
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.timeline-event-card:hover {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 20px rgba(184, 102, 255, 0.3);
+}
+
+.timeline-event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.timeline-event-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-purple);
+}
+
+.timeline-event-date {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.timeline-event-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.timeline-event-impact {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    background: rgba(0, 255, 136, 0.2);
+    color: var(--status-healthy);
+}
+
+.timeline-event-impact.negative {
+    background: rgba(255, 68, 68, 0.2);
+    color: var(--status-critical);
+}
+
+/* Evolution Statistics */
+.evolution-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.stat-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    text-align: center;
+    border-top: 3px solid var(--accent-purple);
+}
+
+.stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent-purple);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Solutions Viewer */
+.solutions-viewer-section {
+    margin-top: var(--spacing-xl);
+}
+
+.solutions-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.solution-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    border: 2px solid rgba(184, 102, 255, 0.3);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.solution-card:hover {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 20px rgba(184, 102, 255, 0.3);
+}
+
+.solution-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.solution-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-purple);
+}
+
+.solution-card-component {
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(184, 102, 255, 0.2);
+    color: var(--accent-purple);
+}
+
+.solution-card-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.solution-card-metrics {
+    display: flex;
+    gap: var(--spacing-md);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.solution-card-action {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--grid-line);
+    display: flex;
+    justify-content: flex-end;
+}
