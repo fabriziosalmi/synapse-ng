@@ -8,7 +8,7 @@
 
 Synapse-NG is a decentralized peer-to-peer network that functions as a living digital organism. It can think, make decisions, own resources, and evolve without central control. Each node is an autonomous agent, and together they form a collective intelligence.
 
-*[Insert a GIF of the dashboard or a high-level architecture diagram here]*
+
 
 ---
 
