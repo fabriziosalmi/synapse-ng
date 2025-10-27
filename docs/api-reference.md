@@ -1112,6 +1112,7 @@ Propose acquisition of a common tool.
   "command": {
     "operation": "acquire_common_tool",
     "params": {
+      "channel": "channel-1",
       "tool_id": "geolocation_api",
       "monthly_cost_sp": 100,
       "credentials_to_encrypt": "API_KEY_HERE",
